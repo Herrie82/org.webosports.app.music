@@ -177,9 +177,17 @@ func handlePlayerStatus(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	// librespot's reported progress runs ~gstBufferLatencyMs ahead of the audible
+	// output (it decodes into the gst queue faster than realtime). Subtract it so
+	// the counter reflects what's being heard; clamp to 0 so it shows 0 while the
+	// buffer is still filling at track start.
+	pos := int(st.Progress) - gstBufferLatencyMs
+	if pos < 0 {
+		pos = 0
+	}
 	out := map[string]interface{}{
 		"is_playing":  st.Playing,
-		"position_ms": st.Progress,
+		"position_ms": pos,
 	}
 	if st.Item != nil {
 		out["uri"] = string(st.Item.URI)

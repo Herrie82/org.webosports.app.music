@@ -53,14 +53,18 @@ enyo.kind({
 	// --- kindAudioManager-compatible surface -> dispatched ---
 	playAudio: function (strPathOrUri, intStartTime, boolForced) {
 		var next = this._pick(strPathOrUri);
-		// switching engines: make sure the other one stops making noise
-		// NOTE kindAudioManager.pauseAudio uses an INVERTED convention —
-		// pauseAudio(false) PAUSES, pauseAudio(true) PLAYS. Passing true here
-		// actually resumed the local <audio>, so it kept playing under Spotify.
-		// pauseAudio(false) pauses the local engine and also pauses librespot
-		// (which toggles off from its playing state), which is what we want.
-		if (this._active && this._active !== next) {
-			this._active.pauseAudio(false);
+		// switching engines: definitively silence the outgoing one WITHOUT ever
+		// resuming it. Both managers' pauseAudio are quirky: kindAudioManager
+		// INVERTS the flag (false = pause, true = play) while kindLibrespotManager
+		// IGNORES the flag and TOGGLES — so a blind call could RESUME the outgoing
+		// engine and steal the audio device (that stopped local from starting).
+		// Only act when it's actually playing, and use each one's pause form.
+		if (this._active && this._active !== next && this._active.boolAudioPlaying) {
+			if (this._active === this.$.spotify) {
+				this._active.pauseAudio();      // librespot toggles; playing -> pause
+			} else {
+				this._active.pauseAudio(false); // local: false = pause
+			}
 		}
 		this._active = next;
 		return next.playAudio(strPathOrUri, intStartTime, boolForced);
