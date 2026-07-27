@@ -7,14 +7,14 @@
         "exeName": "/usr/bin/luna-send",
         "type": "regular",
         "allowedNames": [
-            "com.herrie.musicspotify.service",
-            "com.herrie.musicspotify",
+            "org.webosports.app.music.service",
+            "org.webosports.app.music",
             "com.herrie.musicauth"
         ]
     },
     "permissions": [
         {
-            "service": "com.herrie.musicspotify.service",
+            "service": "org.webosports.app.music.service",
             "inbound": ["*"],
             "outbound": [
                 "com.palm.service.accounts",

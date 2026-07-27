@@ -1,17 +1,25 @@
-.spotify-view { height: 100%; background: #1a1a1a; }
-.spotify-title { font-size: 20px; font-weight: bold; color: #1db954; padding-left: 8px; }
-.spotify-authlabel { font-size: 14px; color: #aaa; padding-right: 10px; }
+/* Spotify results matched to the LEFT NAV list (css/music.css .navigation):
+   grey #e5e5e5 background, #c3c3c3 separators, ~52px rows, 18px title. */
+.spotify-view { height: 100%; background: #e5e5e5; }
+
+.spotify-authlabel { font-size: 13px; color: #a33333; padding-right: 10px; }
 .spotify-loginrow { padding: 16px; }
-.spotify-hint, .spotify-status { color: #888; font-size: 13px; padding: 4px 16px; }
+.spotify-hint, .spotify-status { color: #666; font-size: 13px; padding: 4px 16px; }
+
+/* search box: white field, clear border, medium (not too dark) text */
 .spotify-searchrow { padding: 10px 12px; }
-.spotify-searchrow .enyo-input { margin-right: 8px; }
-.spotify-results { padding: 0 6px; background: #1a1a1a; }
-/* Force the dark theme onto the rows: the stock Palm "Item" kind renders on a
-   light background, which hid the white title while the gray subtitle showed. */
-.spotify-row { padding: 6px 8px; border-bottom: 1px solid #2a2a2a; background: #1a1a1a !important; color: #fff; }
-.spotify-art { width: 48px; height: 48px; margin-right: 10px; background: #333; }
-.spotify-meta { overflow: hidden; background: transparent; }
-.spotify-row-title { color: #fff !important; font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.spotify-row-sub { color: #9a9a9a !important; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* nav entry icon — reuse a generic look */
+.spotify-searchrow .enyo-input { margin-right: 8px; background: #fff; border: 1px solid #b0b0b0; border-radius: 4px; padding: 6px 8px; color: #555; }
+
+/* result rows — same grey + separators + height as the nav */
+.spotify-results { padding: 0; background: #e5e5e5 !important; }
+.spotify-row { padding: 6px 8px; background: #e5e5e5 !important; border-bottom: 1px solid #c3c3c3 !important; }
+.spotify-row.active { background: -webkit-gradient(linear, 0% 0%, 0% 100%, from(rgba(218,235,251,0.6)), to(rgba(197,224,249,0.6))); }
+.spotify-art { width: 40px; height: 40px; margin: 0 10px 0 0; background: #ccc; }
+.spotify-meta { overflow: hidden; }
+.spotify-row-title { color: #1a1a1a; font-size: 18px; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spotify-row-sub { color: #888; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* duration: right-aligned, lined up with the Search button */
+.spotify-row-time { color: #999; font-size: 13px; padding: 0 6px 0 12px; min-width: 40px; text-align: right; }
+
+/* nav entry icon */
 .navigation .spotify .icon { background: #1db954; border-radius: 3px; }

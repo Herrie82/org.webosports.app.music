@@ -36,8 +36,8 @@ For each service `<svc>` (spotify, youtube, soundcloud, deezer, tidal):
   "loc_name": "<Service>",
   "icon": { "loc_32x32": "images/<svc>-32.png", "loc_48x48": "images/<svc>-48.png" },
   "validator": { "customUI": { "appId": "com.herrie.musicauth", "name": "validator.html" } },
-  "readPermissions":  ["com.herrie.musicspotify.service", "com.herrie.musicspotify"],
-  "writePermissions": ["com.herrie.musicspotify.service", "com.herrie.musicspotify"],
+  "readPermissions":  ["org.webosports.app.music.service", "org.webosports.app.music"],
+  "writePermissions": ["org.webosports.app.music.service", "org.webosports.app.music"],
   "capabilityProviders": []
 }]
 ```
@@ -52,7 +52,7 @@ For each service `<svc>` (spotify, youtube, soundcloud, deezer, tidal):
    app handles all services (switch by the template it's launched for).
 
 3. **LS2 roles** (the easily-missed part, per [[connector-ls2-roles]]) —
-   `/usr/share/ls2/roles/{prv,pub}/com.herrie.musicspotify.service.json` allowing the
+   `/usr/share/ls2/roles/{prv,pub}/org.webosports.app.music.service.json` allowing the
    backend to call `com.palm.service.accounts`; and the validator app's role. Without
    these, `readCredentials` → "not permitted".
 
@@ -112,7 +112,7 @@ host-side restart, see runbook). Built:
 - **Account template + MUSIC capability** — `deploy/accounts/com.herrie.music.spotify/`
   (template JSON declaring `capability:"MUSIC"` + Spotify-green 32/48px icons).
 - **Backend `service/creds.go`** — reads/writes an account's `common` credentials
-  via `luna-send -a com.herrie.musicspotify.service` to `com.palm.service.accounts`
+  via `luna-send -a org.webosports.app.music.service` to `com.palm.service.accounts`
   (`listAccounts`/`readCredentials`/`writeCredentials`); `accountToken()` returns
   the first music account's token. Handles the 3 credential-nesting shapes.
 - **`service/token.go`** — `restoreSession()` now prefers account credentials and
@@ -124,7 +124,7 @@ host-side restart, see runbook). Built:
   customUI: embedded atlas-simple WebView OAuth → `/auth/token` → returns
   `credentials.common` via `enyo.CrossAppResult`. Needs one on-device iteration
   pass (activation-param + card lifecycle).
-- **LS2 role** `deploy/ls2-roles/com.herrie.musicspotify.service.json` (candidate;
+- **LS2 role** `deploy/ls2-roles/org.webosports.app.music.service.json` (candidate;
   only needed if `readCredentials` returns a permission error).
 - **Deploy/provision scripts** — `deploy/deploy-accounts.sh` (host: build ARM
   backend, stage, push, install), `deploy/ondevice-install-accounts.sh` (remount

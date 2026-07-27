@@ -39,7 +39,7 @@ build.sh             packages app/ into build-output/*.ipk
 ## Build
 
 ```bash
-./build.sh                      # -> build-output/com.herrie.musicspotify_0.0.1_all.ipk
+./build.sh                      # -> build-output/org.webosports.app.music_0.0.1_all.ipk
 
 cd service                      # Go backend, cross-compiled for the device
 GOOS=linux GOARCH=arm GOARM=7 go build -o spotify-webos-service .

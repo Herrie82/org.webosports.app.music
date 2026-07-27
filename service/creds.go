@@ -33,7 +33,7 @@ import (
 
 // serviceCallerID is the identity we impersonate to the Accounts service; it must
 // appear in the account template's read/writePermissions.
-const serviceCallerID = "com.herrie.musicspotify.service"
+const serviceCallerID = "org.webosports.app.music.service"
 
 // musicTemplatePrefix matches every music-service account type we own.
 const musicTemplatePrefix = "com.herrie.music."

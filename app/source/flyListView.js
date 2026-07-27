@@ -4,7 +4,7 @@
  * kindFlyListView (MPR flylists — rule-based smart playlists)
  * ----------------------------------------------------------
  * Self-contained: stores flylist definitions in db8
- * (com.herrie.musicspotify.flylist:1 { name, match, rules:[{field,op,value}] })
+ * (org.webosports.app.music.flylist:1 { name, match, rules:[{field,op,value}] })
  * and RUNS them client-side against the local media library — so rules work on
  * any field (title/artist/album/genre) without needing a db8 index per field.
  * Modes: "list" (saved flylists) -> "edit" (create) / "results" (run, tap-to-play).
@@ -13,9 +13,9 @@ enyo.kind({
 	name: "kindFlyListView",
 	kind: "VFlexBox",
 	className: "flylist-view",
-	kindId: "com.herrie.musicspotify.flylist:1",
+	kindId: "org.webosports.app.music.flylist:1",
 	mediaKind: "com.palm.media.audio.file:1",
-	owner_: "com.herrie.musicspotify",
+	owner_: "org.webosports.app.music",
 	events: { onSetPlaybackList: "" },
 
 	FIELDS: ["artist", "album", "title", "genre"],

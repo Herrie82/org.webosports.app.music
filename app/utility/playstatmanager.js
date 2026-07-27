@@ -4,7 +4,7 @@
  * kindPlayStatManager (MPR autolists foundation)
  * ----------------------------------------------
  * Tracks per-track play count + last-played time in our db8 kind
- * com.herrie.musicspotify.playstat:1 { trackId, playCount, lastPlayed, title,
+ * org.webosports.app.music.playstat:1 { trackId, playCount, lastPlayed, title,
  * artist, album }. This powers MPR-style autolists:
  *   - Recently Played  (orderBy lastPlayed desc)
  *   - Most Played      (orderBy playCount desc)
@@ -16,8 +16,8 @@
 enyo.kind({
 	name: "kindPlayStatManager",
 	kind: "Component",
-	kindId: "com.herrie.musicspotify.playstat:1",
-	owner_: "com.herrie.musicspotify",
+	kindId: "org.webosports.app.music.playstat:1",
+	owner_: "org.webosports.app.music",
 	events: { onList: "" },
 	components: [
 		{ name: "svcPutKind", kind: "PalmService", service: "palm://com.palm.db/", method: "putKind", onSuccess: "onKindReady", onFailure: "onDbFail" },

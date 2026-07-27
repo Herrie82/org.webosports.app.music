@@ -26,10 +26,14 @@ var (
 // gstDevice: librespot subprocess sink. ffaudioresample -> native 48kHz avoids
 // pulse's low-quality "palm" resampler; media.role=music -> speakers.
 const gstDevice = `gst-launch-0.10 fdsrc fd=0 ! ` +
+	// Streaming buffer: a plain queue absorbs jitter and a 2s PulseAudio buffer
+	// gives ~2s of stall tolerance WITHOUT re-buffer pauses (min-threshold-time
+	// caused audible "buffering" gaps on this device, so it's removed).
+	`queue max-size-buffers=0 max-size-bytes=0 max-size-time=5000000000 ! ` +
 	`audio/x-raw-int,rate=44100,channels=2,width=16,depth=16,signed=true,endianness=1234 ! ` +
 	`audioconvert ! ffaudioresample ! ` +
 	`audio/x-raw-int,rate=48000,channels=2,width=16,depth=16,signed=true,endianness=1234 ! ` +
-	`pulsesink stream-properties=s,media.role=music`
+	`pulsesink stream-properties=s,media.role=music buffer-time=2000000`
 
 // startLibrespot launches the managed librespot loop once (idempotent).
 func startLibrespot() {

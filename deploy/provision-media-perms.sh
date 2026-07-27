@@ -2,7 +2,7 @@
 # provision-media-perms.sh — grant the Music+Spotify app READ access to the local
 # media database so its local-music side works.
 #
-# WHY: com.herrie.musicspotify is a third-party app (not trustLevel:trusted, since
+# WHY: org.webosports.app.music is a third-party app (not trustLevel:trusted, since
 # trusted apps must live in /usr/palm). The local media kinds
 # (com.palm.media.audio.{file,artist,album,genre}:1) have an EXPLICIT read ACL
 # (only ids like com.palm.app.musicplayer are listed), so our id gets
@@ -17,9 +17,9 @@
 # DEPLOY:  novacom -d topaz-linux put file:///media/internal/provision-media-perms.sh < deploy/provision-media-perms.sh
 #          novacom -d topaz-linux run file:///bin/sh -- /media/internal/provision-media-perms.sh
 set -e
-APP=${1:-com.herrie.musicspotify}
+APP=${1:-org.webosports.app.music}
 OWNER=com.palm.filenotifyd.js
-KINDS="com.palm.media.audio.file:1 com.palm.media.audio.artist:1 com.palm.media.audio.album:1 com.palm.media.audio.genre:1"
+KINDS="com.palm.media.audio.file:1 com.palm.media.audio.artist:1 com.palm.media.audio.album:1 com.palm.media.audio.genre:1 com.palm.media.playlist.file:1"
 
 PERMS=""
 for k in $KINDS; do

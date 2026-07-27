@@ -655,6 +655,10 @@ enyo.kind({
 	},
 
 	onBookmark_Manager: function (sender, trackId, position, duration) {
+		// Auto-resume disabled by request: a tapped track should start from the
+		// beginning, not jump to a previously-saved position. (Bookmarks are still
+		// saved; we can re-enable a smarter "resume only the last track on launch".)
+		return;
 		try {
 			if (!position || !duration || position < 10 || position > (duration - 15)) { return; }
 			if (String(trackId) !== String(this.$.Playback.getTrackID())) { return; }

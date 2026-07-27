@@ -5,7 +5,7 @@
  * -------------------------------------
  * Auto + manual bookmarks so playback resumes where you left off (great for
  * podcasts/audiobooks/long mixes). Stores one row per track id in our own db8
- * kind com.herrie.musicspotify.bookmark:1 { trackId, position(sec), duration }.
+ * kind org.webosports.app.music.bookmark:1 { trackId, position(sec), duration }.
  *
  * app.js wiring:
  *   - onUpdateTrackTime (throttled ~10s)  -> save(trackId, pos, dur)
@@ -16,8 +16,8 @@
 enyo.kind({
 	name: "kindBookmarkManager",
 	kind: "Component",
-	kindId: "com.herrie.musicspotify.bookmark:1",
-	owner_: "com.herrie.musicspotify",
+	kindId: "org.webosports.app.music.bookmark:1",
+	owner_: "org.webosports.app.music",
 	events: { onBookmark: "" },
 	components: [
 		{ name: "svcPutKind", kind: "PalmService", service: "palm://com.palm.db/", method: "putKind", onSuccess: "onKindReady", onFailure: "onDbFail" },

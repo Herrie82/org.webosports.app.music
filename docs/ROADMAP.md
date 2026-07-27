@@ -4,7 +4,7 @@ Three parallel dimensions on one Enyo base (the stock Music app fork). Build in
 this order — each phase is independently shippable.
 
 ## Phase 0 — Base (DONE in scaffold)
-- [x] Fork `com.palm.app.musicplayer` → `app/` (id `com.herrie.musicspotify`).
+- [x] Fork `com.palm.app.musicplayer` → `app/` (id `org.webosports.app.music`).
 - [x] `build.sh` produces an installable IPK in stock format (+ auto-fixes localized
       `resources/*/appinfo.json` ids, which otherwise silently block registration).
 - [x] Fork installs and launches on the topaz TouchPad (`returnValue: true`).

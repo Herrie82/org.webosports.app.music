@@ -14,7 +14,7 @@ enyo.kind({
 	name: "kindAutoListView",
 	kind: "VFlexBox",
 	className: "autolist-view",
-	playstatKind: "com.herrie.musicspotify.playstat:1",
+	playstatKind: "org.webosports.app.music.playstat:1",
 	mediaKind: "com.palm.media.audio.file:1",
 	events: { onSetPlaybackList: "" },
 	tracks: [],

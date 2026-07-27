@@ -146,7 +146,9 @@ enyo.kind({
 	{
 		
 		this.log(boolAudioPlaying);
-		this.$.btnPlay.addRemoveClass("paused", !boolAudioPlaying);
+		// Show the PAUSE glyph while playing, PLAY glyph while paused (the CSS
+		// icons for .play vs .play.paused are the other way round, so flip here).
+		this.$.btnPlay.addRemoveClass("paused", boolAudioPlaying);
 		//this.$.btnPlay.srcChanged();
 		
 	},
@@ -180,8 +182,10 @@ enyo.kind({
 			}
 			
 			this.$.lblSongTitle.setContent(objTrackInfo.strTrackTitle);
-//			this.$.lblArtistName.setContent(objTrackInfo.strTrackArtist + " - "+ objTrackInfo.strTrackAlbum); design says no album name :/
-			this.$.lblArtistName.setContent(objTrackInfo.strTrackArtist);
+			// Show "Artist — Album" (album re-enabled by request).
+			var strArtistAlbum = objTrackInfo.strTrackArtist || "";
+			if (objTrackInfo.strTrackAlbum) { strArtistAlbum += " — " + objTrackInfo.strTrackAlbum; }
+			this.$.lblArtistName.setContent(strArtistAlbum);
 
 			
 			this._boolUpdateSlider = true;

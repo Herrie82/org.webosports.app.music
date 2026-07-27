@@ -9,7 +9,7 @@
 set -e
 TEMPLATE=com.herrie.music.spotify
 TOKENFILE=/media/internal/spotify-token.json
-A(){ luna-send -n 1 -a com.herrie.musicspotify.service "$@"; }
+A(){ luna-send -n 1 -a org.webosports.app.music.service "$@"; }
 
 echo "== 1. is our account type registered? =="
 A palm://com.palm.service.accounts/listAccountTemplates '{}' | tr ',' '\n' | grep -i "$TEMPLATE" || \

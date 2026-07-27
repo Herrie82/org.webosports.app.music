@@ -49,9 +49,14 @@ enyo.kind({
 	_oauthDone: false,
 
 	components: [
-		{ kind: "Toolbar", className: "enyo-toolbar-light", components: [
-			{ content: $L("Spotify"), className: "spotify-title", flex: 1 },
-			{ name: "authLabel", content: $L("Checking…"), className: "spotify-authlabel" }
+		// Header styled exactly like the stock Songs header (ctrlListViewHeader):
+		// list-header toolbar with a left-aligned .title. authLabel stays empty
+		// unless action is needed (no "Checking…").
+		{ kind: "Toolbar", className: "enyo-toolbar enyo-toolbar-light list-header", pack: "justify", layoutKind: "HFlexLayout", components: [
+			{ kind: "Control", className: "list-header-title-layout", layoutKind: "HLayout", components: [
+				{ content: $L("Spotify"), className: "title enyo-text-ellipsis", flex: 1 }
+			]},
+			{ name: "authLabel", content: "", className: "spotify-authlabel" }
 		]},
 		{ name: "loginRow", className: "spotify-loginrow", showing: false, layoutKind: "HFlexLayout", align: "center", components: [
 			{ name: "btnLogin", kind: "Button", className: "enyo-button-affirmative", content: $L("Log in with Spotify"), onclick: "login" },
@@ -64,9 +69,11 @@ enyo.kind({
 				{ kind: "Button", content: $L("Cancel"), onclick: "cancelLogin" }
 			]}
 		]},
-		{ name: "searchRow", className: "spotify-searchrow", showing: false, layoutKind: "HFlexLayout", align: "center", components: [
-			{ name: "search", kind: "Input", flex: 1, hint: $L("Search Spotify…"), onkeyup: "searchKey" },
-			{ name: "btnSearch", kind: "Button", content: $L("Search"), onclick: "doSearch" }
+		// Search field with the original webOS magnifier overlaid inside on the right
+		// (Messaging-style). The icon is absolutely positioned over the input.
+		{ name: "searchRow", className: "spotify-searchrow", showing: false, layoutKind: "HFlexLayout", align: "center", style: "padding:10px 12px 46px 12px; border-bottom:1px solid #c3c3c3; position:relative;", components: [
+			{ name: "search", kind: "Input", flex: 1, hint: $L("Search Spotify…"), onkeyup: "searchKey", style: "height:40px; font-size:16px; padding-right:40px;" },
+			{ name: "btnSearch", kind: "Image", src: "images/empty-search.png", onclick: "doSearch", style: "position:absolute; right:22px; top:16px; width:28px; height:28px;" }
 		]},
 		{ name: "status", className: "spotify-status", content: "" },
 		{ name: "scroller", kind: "Scroller", flex: 1, components: [
@@ -107,7 +114,8 @@ enyo.kind({
 	},
 
 	setAuthed: function (ok) {
-		this.$.authLabel.setContent(ok ? $L("Connected ✓") : $L("Not connected"));
+		// Empty when signed in (no clutter); only speak up when action is needed.
+		this.$.authLabel.setContent(ok ? "" : $L("Not connected"));
 		this.$.loginRow.setShowing(!ok && !this.$.oauthBox.showing);
 		this.$.searchRow.setShowing(ok);
 		if (ok) { this.stopPolling(); this.teardownWeb(); }
@@ -228,6 +236,13 @@ enyo.kind({
 		);
 	},
 
+	// duration_ms -> "M:SS"
+	_fmtDur: function (ms) {
+		if (!ms || ms < 0) { return ""; }
+		var s = Math.round(ms / 1000), m = Math.floor(s / 60), r = s % 60;
+		return m + ":" + (r < 10 ? "0" + r : r);
+	},
+
 	renderResults: function (tracks) {
 		this.tracks = tracks;
 		this.$.status.setContent(tracks.length ? "" : $L("No results"));
@@ -243,16 +258,20 @@ enyo.kind({
 		enyo.forEach(tracks, function (t, i) {
 			this.$.resultList.createComponent({
 				kind: "Item", index: i, layoutKind: "HFlexLayout", align: "center",
-				className: "spotify-row", onclick: "tapTrack", components: [
-					{ kind: "Image", src: t.thumbnail || "", className: "spotify-art" },
+				style: "background:#e5e5e5; border-bottom:1px solid #c3c3c3; padding:0 12px; height:54px; -webkit-box-sizing:border-box;", className: "spotify-row", tapHighlight: true, tapHighlightClassName: "active", onclick: "tapTrack", components: [
+					{ kind: "Image", src: t.thumbnail || "", className: "spotify-art", style: "width:40px; height:40px; margin:0 12px 0 10px;" },
 					{ kind: "Control", flex: 1, className: "spotify-meta", components: [
 						{ content: t.title || "", className: "spotify-row-title" },
 						{ content: ((t.artist || "") + " — " + (t.album || "")), className: "spotify-row-sub" }
-					]}
+					]},
+					{ name: "pp" + i, kind: "Image", showing: false, onclick: "onPlayPauseTap", style: "width:18px; height:18px; margin-left:12px;" },
+						{ content: this._fmtDur(t.duration_ms), className: "spotify-row-time", style: "text-align:right; padding-left:12px;" }
 				]
 			}, { owner: this });
 		}, this);
 		this.$.resultList.render();
+		this._updatePlayIcons();
+		this._startStatusPoll();
 	},
 
 	// --- play: build a playback list from the results, start at the tapped one ---
@@ -266,10 +285,52 @@ enyo.kind({
 				thumbnails: t.thumbnail ? [{ data: t.thumbnail }] : []
 			};
 		});
-		this.$.status.setContent($L("Playing: ") + (this.tracks[start] ? this.tracks[start].title : ""));
+		this._playingUri = this.tracks[start] ? this.tracks[start].path : "";
+		this._isPlaying = true;
+		this._updatePlayIcons();
+		this._startStatusPoll();
 		this.doSetPlaybackList({
 			arSetPlaybackList: list, intStartTrackIndex: start, intStartTrackTime: 0,
 			strOriginListID: "spotify-search", strListQuery: JSON.stringify({ spotify: true })
 		});
+	},
+
+	// --- in-row now-playing indicator + play/pause toggle (left of the duration) ---
+	_post: function (path) {
+		try { var x = new XMLHttpRequest(); x.open("POST", this.backend + path, true); x.send(null); } catch (e) {}
+	},
+	_startStatusPoll: function () {
+		if (this._statusPoll) { return; }
+		this._statusPoll = window.setInterval(enyo.bind(this, this._pollStatus), 1500);
+	},
+	_stopStatusPoll: function () { if (this._statusPoll) { window.clearInterval(this._statusPoll); this._statusPoll = null; } },
+	_pollStatus: function () {
+		this._get("/player/status", enyo.bind(this, function (d) {
+			if (!d) { return; }
+			var uri = d.uri || "", playing = !!d.is_playing;
+			if (uri !== this._playingUri || playing !== this._isPlaying) {
+				this._playingUri = uri; this._isPlaying = playing; this._updatePlayIcons();
+			}
+		}));
+	},
+	// || (pause) on the playing row, ▶ (play) when paused; hidden on the rest
+	_updatePlayIcons: function () {
+		if (!this.tracks) { return; }
+		for (var i = 0; i < this.tracks.length; i++) {
+			var img = this.$["pp" + i];
+			if (!img) { continue; }
+			if (this._playingUri && this.tracks[i].path === this._playingUri) {
+				img.setSrc(this._isPlaying ? "images/pp_pause.png" : "images/pp_play.png");
+				img.setShowing(true);
+			} else {
+				img.setShowing(false);
+			}
+		}
+	},
+	onPlayPauseTap: function (sender, ev) {
+		if (this._isPlaying) { this._post("/player/pause"); this._isPlaying = false; }
+		else { this._post("/player/play"); this._isPlaying = true; }
+		this._updatePlayIcons();
+		return true; // don't bubble to the row's tapTrack (would restart the track)
 	}
 });

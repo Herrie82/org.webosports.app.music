@@ -13,13 +13,13 @@
     },
     "loc_usernameLabel": "SPOTIFY ACCOUNT",
     "readPermissions": [
-        "com.herrie.musicspotify.service",
-        "com.herrie.musicspotify",
+        "org.webosports.app.music.service",
+        "org.webosports.app.music",
         "com.herrie.musicauth"
     ],
     "writePermissions": [
-        "com.herrie.musicspotify.service",
-        "com.herrie.musicspotify",
+        "org.webosports.app.music.service",
+        "org.webosports.app.music",
         "com.herrie.musicauth"
     ],
     "capabilityProviders": [

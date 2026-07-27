@@ -5,7 +5,7 @@
 #
 # Expects the staging payload already pushed to /media/internal/mp-accounts/:
 #   accounts/com.herrie.music.spotify/...   (template + images)
-#   ls2-roles/com.herrie.musicspotify.service.json
+#   ls2-roles/org.webosports.app.music.service.json
 #   spotify-webos-service                   (rebuilt ARM backend, optional)
 set -e
 STAGE=/media/internal/mp-accounts
@@ -24,7 +24,7 @@ ls -la "$ACCTS"/com.herrie.music.spotify/ || true
 echo "== install ls2 role (both bus dirs) =="
 for d in "$ROLES_PRV" "$ROLES_PUB"; do
     if [ -d "$d" ]; then
-        cp -f "$STAGE"/ls2-roles/com.herrie.musicspotify.service.json "$d"/ 2>/dev/null || true
+        cp -f "$STAGE"/ls2-roles/org.webosports.app.music.service.json "$d"/ 2>/dev/null || true
     fi
 done
 
