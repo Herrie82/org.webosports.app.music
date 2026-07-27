@@ -77,8 +77,11 @@ enyo.kind({
 	buildTabs: function (providers) {
 		var kids = this.$.tabs.children;
 		for (var k = kids.length - 1; k >= 0; k--) { if (kids[k] && kids[k].destroy) { kids[k].destroy(); } }
+		// Include Spotify too (unified UI). Its tracks play via librespot rather than
+		// the stream player — the router picks the engine by path prefix; only the
+		// in-row transport endpoints differ (handled by _isSpotify below).
 		var list = [];
-		enyo.forEach(providers, function (p) { if (p && p.id !== "spotify") { list.push(p); } });
+		enyo.forEach(providers, function (p) { if (p && p.id) { list.push(p); } });
 		if (!list.length) { this.$.authLabel.setContent($L("No connectors")); return; }
 		enyo.forEach(list, function (p) {
 			this.$.tabs.createComponent({
@@ -189,10 +192,14 @@ enyo.kind({
 		this._statusPoll = window.setInterval(enyo.bind(this, this._pollStatus), 1500);
 	},
 	_stopStatusPoll: function () { if (this._statusPoll) { window.clearInterval(this._statusPoll); this._statusPoll = null; } },
+	_isSpotify: function () { return this._provider === "spotify"; },
 	_pollStatus: function () {
-		this._get("/stream/status", enyo.bind(this, function (d) {
+		var sp = this._isSpotify();
+		this._get(sp ? "/player/status" : "/stream/status", enyo.bind(this, function (d) {
 			if (!d) { return; }
-			if (d.ended) { this._stopStatusPoll(); this._playingIndex = -1; this._isPlaying = false; this._updatePlayIcons(); return; }
+			// stream player reports `ended` when the pipeline exits; librespot doesn't,
+			// so for Spotify just track is_playing on the tapped row.
+			if (!sp && d.ended) { this._stopStatusPoll(); this._playingIndex = -1; this._isPlaying = false; this._updatePlayIcons(); return; }
 			var playing = !!d.is_playing;
 			if (playing !== this._isPlaying) { this._isPlaying = playing; this._updatePlayIcons(); }
 		}));
@@ -211,8 +218,9 @@ enyo.kind({
 		}
 	},
 	onPlayPauseTap: function (sender, ev) {
-		if (this._isPlaying) { this._post("/stream/pause"); this._isPlaying = false; }
-		else { this._post("/stream/resume"); this._isPlaying = true; }
+		var sp = this._isSpotify();
+		if (this._isPlaying) { this._post(sp ? "/player/pause" : "/stream/pause"); this._isPlaying = false; }
+		else { this._post(sp ? "/player/play" : "/stream/resume"); this._isPlaying = true; }
 		this._updatePlayIcons();
 		return true; // don't bubble to tapTrack
 	}

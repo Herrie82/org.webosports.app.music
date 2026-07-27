@@ -1,6 +1,6 @@
 {
  "id": "org.webosports.app.music",
- "version": "0.5.1",
+ "version": "0.5.2",
  "vendor": "Herrie",
  "type": "web",
  "main": "index.html",
