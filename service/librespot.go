@@ -82,6 +82,9 @@ func librespotLoop() {
 			"--system-cache", librespotDir,
 			"--bitrate", "320",
 			"--dither", "none", // tpdf dithering is per-sample CPU we can't spare on this ARM
+			"--autoplay", "off", // we play single tracks (no context); without this librespot's
+			// radio/autoplay advances to a random recommended track a few seconds after pause,
+			// so "resume" landed on a different song from its start.
 			"--initial-volume", "100",
 			"--volume-ctrl", "linear",
 		}
