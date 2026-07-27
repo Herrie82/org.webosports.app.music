@@ -78,12 +78,29 @@ func main() {
 
 	registerProvider(&spotifyProvider{})
 	registerProvider(&youtubeProvider{})
+	registerProvider(&soundcloudProvider{})
+	registerProvider(newJamendoProvider())
+	registerProvider(&archiveProvider{})
 
-	// First-party lossless downloaders (self-register only if their credential
-	// file exists in /media/internal/). No middleman — direct service APIs.
-	registerDownloader(newQobuzDL())
-	registerDownloader(newTidalDL())
-	registerDownloader(newDeezerDL())
+	// First-party services double as lossless DOWNLOADERS (self-register only if
+	// their credential file exists) and streaming PROVIDERS. Qobuz/Tidal stream URLs
+	// are plain (register only with creds); Deezer streams are scrambled -> the
+	// provider always registers (free public search + 30s preview) and full tracks
+	// go through the /dzstream descrambling proxy when a deezer-arl is present.
+	qz := newQobuzDL()
+	td := newTidalDL()
+	dz := newDeezerDL()
+	dzDL = dz
+	registerDownloader(qz)
+	registerDownloader(td)
+	registerDownloader(dz)
+	registerProvider(&deezerProvider{dl: dz})
+	if qz.Available() {
+		registerProvider(&qobuzProvider{dl: qz})
+	}
+	if td.Available() {
+		registerProvider(&tidalProvider{dl: td})
+	}
 
 	restoreSession() // reload a persisted token, if any, so login survives restarts
 	loadYtToken()    // reload a persisted YouTube OAuth token, if any
@@ -96,6 +113,7 @@ func main() {
 	mux.HandleFunc("/stream/resume", withCORS(handleStreamResume))
 	mux.HandleFunc("/stream/stop", withCORS(handleStreamStop))
 	mux.HandleFunc("/stream/status", withCORS(handleStreamStatus))
+	mux.HandleFunc("/dzstream", handleDzStream) // Deezer descrambling stream proxy (no CORS; gst/curl only)
 	mux.HandleFunc("/ytauth/start", withCORS(handleYtAuthStart))   // begin device-code login
 	mux.HandleFunc("/ytauth/poll", withCORS(handleYtAuthPoll))     // poll for authorisation
 	mux.HandleFunc("/ytauth/status", withCORS(handleYtAuthStatus)) // is YouTube signed in?
