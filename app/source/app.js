@@ -274,11 +274,13 @@ enyo.kind({
 	windowHiddenHandler: function()
 	{
 		this.log();
-		this.playPause(false);
+		// A music player must KEEP PLAYING when the window is hidden — e.g. when the
+		// device enters dock/exhibition mode or the card is minimized. The stock app
+		// paused here (this.playPause(false)) and also suspended the playback control
+		// (setBoolSuspendPlayback(true)), which stopped the music on dock. Removed
+		// both so audio continues in the background; only the UI time-polling is
+		// suspended to save CPU (audio is unaffected).
 		this.$.Playback.setBoolSuspendUpdates(true);
-		this.$.Playback.setBoolSuspendPlayback(true);
-
-		this.$.DashboardManager.closeControlDashboard();
 	},
 	
 	

@@ -25,17 +25,20 @@ var (
 
 // gstDevice: librespot subprocess sink. ffaudioresample -> native 48kHz avoids
 // pulse's low-quality "palm" resampler; media.role=music -> speakers.
+// CRITICAL: the queue MUST be bounded by BYTES, not time. fdsrc emits raw PCM with
+// no buffer timestamps, so a max-size-time limit can never trigger; with
+// max-size-bytes=0 (unlimited) the queue accepted the WHOLE decoded track, letting
+// librespot dump it into RAM at ~3-4x realtime, hit end-of-track in ~1min, and Stop
+// (killing gst mid-playback — that was the "music stops after 1-2.5min then restarts
+// from 0" bug). Bounding by bytes makes the queue block upstream and forces librespot
+// to feed at realtime. PCM here is 44100*2ch*2B = 176400 B/s, so this is ~1s of
+// jitter cushion — plenty, since the whole track is already cached within ~3s of
+// load (no network underrun risk). pulse does the 44.1->48k rate conversion; a small
+// 0.5s pulse buffer keeps startup preroll short.
 const gstDevice = `gst-launch-0.10 fdsrc fd=0 ! ` +
-	// Streaming buffer: start playing ASAP and keep buffering WHILE playing.
-	// A plain queue (no min-threshold-time, which caused audible "buffering" gaps)
-	// passes the first samples straight through and then fills to ~1.5s DURING
-	// playback to absorb jitter. A small 0.5s PulseAudio buffer keeps startup
-	// preroll short. The real slow-wifi protection is librespot's own compressed
-	// download-ahead upstream of this pipe; the PCM queue is only jitter smoothing.
-	`queue max-size-buffers=0 max-size-bytes=0 max-size-time=1500000000 ! ` +
+	`queue max-size-buffers=0 max-size-bytes=176400 max-size-time=0 ! ` +
 	`audio/x-raw-int,rate=44100,channels=2,width=16,depth=16,signed=true,endianness=1234 ! ` +
-	`audioconvert ! ffaudioresample ! ` +
-	`audio/x-raw-int,rate=48000,channels=2,width=16,depth=16,signed=true,endianness=1234 ! ` +
+	`audioconvert ! ` +
 	`pulsesink stream-properties=s,media.role=music buffer-time=500000 latency-time=50000`
 
 // gstBufferLatencyMs is how far AHEAD librespot's reported progress runs vs the
@@ -78,6 +81,7 @@ func librespotLoop() {
 			"--device", gstDevice,
 			"--system-cache", librespotDir,
 			"--bitrate", "320",
+			"--dither", "none", // tpdf dithering is per-sample CPU we can't spare on this ARM
 			"--initial-volume", "100",
 			"--volume-ctrl", "linear",
 		}
