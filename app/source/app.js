@@ -70,6 +70,9 @@ enyo.kind({
 							{name: "viewListViewSpotify", flex: 1, components: [
 								{name: "listViewSpotify", kind: "kindSpotifyView", flex: 1, onSetPlaybackList: "onSetPlaybackList"}
 							]},
+							{name: "viewListViewConnectors", flex: 1, components: [
+								{name: "listViewConnectors", kind: "kindConnectorView", flex: 1, onSetPlaybackList: "onSetPlaybackList"}
+							]},
 							{name: "viewListViewAutoList", flex: 1, components: [
 								{name: "listViewAutoList", kind: "kindAutoListView", flex: 1, onSetPlaybackList: "onSetPlaybackList"}
 							]},
@@ -1550,7 +1553,7 @@ enyo.kind({
 
 		// Spotify view is self-contained (talks to the Go backend); skip the
 		// local media-DB list plumbing.
-		if (strListViewType === "Spotify" || strListViewType === "AutoList" || strListViewType === "FlyList")
+		if (strListViewType === "Spotify" || strListViewType === "Connectors" || strListViewType === "AutoList" || strListViewType === "FlyList")
 		{
 			return;
 		}

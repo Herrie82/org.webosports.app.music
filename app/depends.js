@@ -31,6 +31,7 @@ enyo.depends(
 	"source/playerControl.js",
 
 	"source/spotifyView.js",
+	"source/connectorView.js",
 	"source/autoListView.js",
 	"source/autoListView.css",
 	"source/flyListView.js",
@@ -54,6 +55,7 @@ enyo.depends(
 	"utility/accountmanager.js",
 	"utility/audiomanager.js",
 	"utility/librespotmanager.js",
+	"utility/streammanager.js",
 	"utility/audiorouter.js",
 	"utility/playback.js",
 	"utility/playbacklist.js",

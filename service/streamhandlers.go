@@ -23,6 +23,6 @@ func handleStreamStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleStreamStatus(w http.ResponseWriter, r *http.Request) {
-	playing, pos := streamStatus()
-	writeJSON(w, map[string]interface{}{"is_playing": playing, "position_ms": pos})
+	playing, pos, ended := streamStatus()
+	writeJSON(w, map[string]interface{}{"is_playing": playing, "position_ms": pos, "ended": ended})
 }

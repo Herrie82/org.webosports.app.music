@@ -39,15 +39,24 @@ enyo.kind({
 		  onPausePlay: "_relayPausePlay", onAudioError: "_relayError" },
 		{ name: "spotify", kind: "kindLibrespotManager",
 		  onPlaying: "_relayPlaying", onEnded: "_relayEnded", onSrcChanged: "_relaySrcChanged",
+		  onPausePlay: "_relayPausePlay", onAudioError: "_relayError" },
+		{ name: "stream", kind: "kindStreamManager",
+		  onPlaying: "_relayPlaying", onEnded: "_relayEnded", onSrcChanged: "_relaySrcChanged",
 		  onPausePlay: "_relayPausePlay", onAudioError: "_relayError" }
 	],
+
+	// stream-URL connectors routed to kindStreamManager (Spotify -> librespot; a local
+	// file path -> kindAudioManager).
+	_streamRe: /^(youtube|soundcloud|deezer|jamendo|archive|qobuz|tidal):/,
 
 	_active: null, // reference to whichever backend is currently in charge
 
 	_pick: function (strPathOrUri) {
-		return (typeof strPathOrUri === "string" && strPathOrUri.indexOf("spotify:") === 0)
-			? this.$.spotify
-			: this.$.local;
+		if (typeof strPathOrUri === "string") {
+			if (strPathOrUri.indexOf("spotify:") === 0) { return this.$.spotify; }
+			if (this._streamRe.test(strPathOrUri)) { return this.$.stream; }
+		}
+		return this.$.local;
 	},
 
 	// --- kindAudioManager-compatible surface -> dispatched ---
@@ -60,8 +69,8 @@ enyo.kind({
 		// engine and steal the audio device (that stopped local from starting).
 		// Only act when it's actually playing, and use each one's pause form.
 		if (this._active && this._active !== next && this._active.boolAudioPlaying) {
-			if (this._active === this.$.spotify) {
-				this._active.pauseAudio();      // librespot toggles; playing -> pause
+			if (this._active === this.$.spotify || this._active === this.$.stream) {
+				this._active.pauseAudio();      // librespot/stream toggle; playing -> pause
 			} else {
 				this._active.pauseAudio(false); // local: false = pause
 			}
@@ -75,7 +84,7 @@ enyo.kind({
 	getAudioCurrentTime: function () { return this._active ? this._active.getAudioCurrentTime() : 0; },
 	getAudioDuration:    function () { return this._active ? this._active.getAudioDuration() : 0; },
 	resetAudio:       function () { if (this._active) { this._active.resetAudio(); } this._sync(); },
-	killAudio:        function () { this.$.local.killAudio(); this.$.spotify.killAudio(); this._sync(); },
+	killAudio:        function () { this.$.local.killAudio(); this.$.spotify.killAudio(); this.$.stream.killAudio(); this._sync(); },
 
 	// copy the active backend's state flags up so playback.js sees them
 	_sync: function () {

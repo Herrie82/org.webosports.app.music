@@ -51,6 +51,10 @@ enyo.kind({
 				{className: "icon"},
 				{content: $L("Spotify"), className: "name", flex:1}
 			]},
+			{name: "libConnectors", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "Connectors", className: "connectors", onclick: "onClickLibrary", components: [
+				{className: "icon"},
+				{content: $L("Connectors"), className: "name", flex:1}
+			]},
 			{name: "libAutoList", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "AutoList", className: "autolist", onclick: "onClickLibrary", components: [
 				{className: "icon"},
 				{content: $L("Auto Playlists"), className: "name", flex:1}

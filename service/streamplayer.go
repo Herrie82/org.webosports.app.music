@@ -63,7 +63,17 @@ func playStreamURL(url string) error {
 	stream.playing = true
 	stream.paused = false
 	log.Printf("stream: playing %.60s", url)
-	go func() { _ = cmd.Wait() }()
+	go func() {
+		_ = cmd.Wait()
+		// track finished (EOF) or died -> mark ended so /stream/status reports it and
+		// the app can auto-advance. Only if this is still the current pipeline.
+		stream.mu.Lock()
+		if stream.cmd == cmd {
+			stream.playing = false
+			stream.paused = false
+		}
+		stream.mu.Unlock()
+	}()
 	return nil
 }
 
@@ -110,10 +120,13 @@ func streamPause()  { stream.mu.Lock(); stream.pauseLocked(); stream.mu.Unlock()
 func streamResume() { stream.mu.Lock(); stream.resumeLocked(); stream.mu.Unlock() }
 func stopStream()   { stream.mu.Lock(); stream.killLocked(); stream.mu.Unlock() }
 
-func streamStatus() (playing bool, positionMs int) {
+// streamStatus reports transport state. `ended` is true once the pipeline has
+// exited (track finished/stopped) as opposed to merely paused (process still alive).
+func streamStatus() (playing bool, positionMs int, ended bool) {
 	stream.mu.Lock()
 	defer stream.mu.Unlock()
-	return stream.playing && !stream.paused, stream.posMs()
+	started := stream.cmd != nil
+	return stream.playing && !stream.paused, stream.posMs(), started && !stream.playing
 }
 
 // escapeSingle makes a URL safe inside a single-quoted shell string.
