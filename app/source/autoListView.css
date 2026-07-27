@@ -1,0 +1,10 @@
+.autolist-view { height: 100%; background: #1a1a1a; }
+.autolist-title { font-size: 20px; font-weight: bold; color: #eee; padding-left: 8px; }
+.autolist-tabs { padding: 8px 10px; }
+.autolist-tabs .enyo-button { margin: 0 3px; }
+.autolist-status { color: #888; font-size: 13px; padding: 4px 16px; }
+.autolist-results { padding: 0 6px; }
+.autolist-row { padding: 8px 10px; border-bottom: 1px solid #2a2a2a; }
+.autolist-row-title { color: #fff; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.autolist-row-sub { color: #9a9a9a; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.navigation .autolist .icon { background: #e0a030; border-radius: 3px; }

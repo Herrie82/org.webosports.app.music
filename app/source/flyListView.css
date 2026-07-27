@@ -1,0 +1,12 @@
+.flylist-view { height: 100%; background: #1a1a1a; }
+.flylist-title { font-size: 20px; font-weight: bold; color: #eee; padding-left: 8px; }
+.flylist-status { color: #888; font-size: 13px; padding: 4px 16px; }
+.flylist-list, .flylist-results, .flylist-edit { padding: 6px 10px; }
+.flylist-row, .flylist-track { padding: 8px 10px; border-bottom: 1px solid #2a2a2a; }
+.flylist-row-title { color: #fff; font-size: 16px; }
+.flylist-row-sub { color: #9a9a9a; font-size: 13px; }
+.flylist-del { max-width: 44px; margin-left: 8px; }
+.flylist-name-in { width: 100%; margin: 6px 0; }
+.flylist-rule { margin: 4px 0; }
+.flylist-rule .enyo-button { margin-right: 6px; }
+.navigation .flylist .icon { background: #c060d0; border-radius: 3px; }

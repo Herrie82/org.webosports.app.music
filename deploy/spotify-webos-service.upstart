@@ -1,0 +1,12 @@
+description "Music+Spotify backend (Spotify search + Connect playback control)"
+
+# Start once the UI is up (media partition + network are ready by then).
+start on started LunaSysMgr
+stop on stopping LunaSysMgr
+
+# Restart if it ever dies.
+respawn
+
+# Binary + client-id file live on the persistent media partition.
+# Reads /media/internal/spotify-client-id automatically (see -client-id-file).
+exec /media/internal/spotify-webos-service -addr 127.0.0.1:8730

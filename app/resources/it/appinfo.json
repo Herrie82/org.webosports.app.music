@@ -1,0 +1,15 @@
+{
+ "debug": false,
+ "icon": "../../icon.png",
+ "id": "com.herrie.musicspotify",
+ "main": "../../index.html",
+ "miniicon": "../../images/notification-small.png",
+ "noWindow": true,
+ "removable": true,
+ "splashicon": "../../icon-256x256.png",
+ "title": "Musica",
+ "type": "web",
+ "uiRevision": 2,
+ "vendor": "Herrie",
+ "version": "0.0.1"
+}

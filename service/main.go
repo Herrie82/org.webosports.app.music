@@ -1,0 +1,145 @@
+// Command spotify-webos-service is the on-device backend for the Music+Spotify
+// Enyo app. It exposes a tiny localhost HTTP/JSON API that the app calls:
+//
+//	POST /session          {access_token, refresh_token, expiry}  -> store token
+//	GET  /search?q=&type=&limit=                                   -> Spotify search
+//	GET  /browse/album?id= | /browse/artist?id= | /me/playlists    -> browse
+//	POST /player/load      {uri, position_ms}                      -> start a track
+//	POST /player/play | /player/pause | /player/next | /player/prev
+//	POST /player/seek      {position_ms}
+//	POST /player/volume    {volume}   (0..100)
+//	GET  /player/status                                            -> position/state
+//
+// Search/browse hit the Spotify Web API via github.com/zmb3/spotify.
+// Playback is delegated to a local librespot Spotify Connect receiver, which the
+// service drives through the Spotify Connect Web API (transfer + transport).
+//
+// The front-end performs the OAuth2 Authorization-Code+PKCE flow itself (the
+// device now has TLS 1.3 + a modern browser) and POSTs the resulting token to
+// /session, so this service never needs a client secret.
+//
+// Build for webOS (ARMv7) with Herrie's Go toolchain, e.g.:
+//
+//	GOOS=linux GOARCH=arm GOARM=7 go build -o spotify-webos-service .
+package main
+
+import (
+	"encoding/json"
+	"flag"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"sync"
+
+	"github.com/zmb3/spotify/v2"
+)
+
+// session holds the current authenticated Spotify client + chosen device.
+type session struct {
+	mu            sync.RWMutex
+	client        *spotify.Client
+	deviceID      spotify.ID // the librespot Connect receiver we play through
+	librespotName string     // Connect device name to auto-select
+}
+
+var sess = &session{}
+
+// config holds the OAuth app identity (see auth.go).
+type config struct {
+	clientID    string
+	redirectURL string
+}
+
+var cfg = &config{}
+
+func main() {
+	addr := flag.String("addr", "127.0.0.1:8730", "listen address (localhost only)")
+	librespotName := flag.String("librespot-name", "webOS", "Connect device name to target for playback")
+	clientID := flag.String("client-id", "", "Spotify app client id (for the in-backend OAuth PKCE flow)")
+	clientIDFile := flag.String("client-id-file", "/media/internal/spotify-client-id", "file to read the client id from if -client-id is empty")
+	redirect := flag.String("redirect", "http://127.0.0.1:8730/auth/callback", "OAuth redirect URL (must be registered on the Spotify app)")
+	tokenFile := flag.String("token-file", tokenPath, "where to persist the OAuth token (survives restarts)")
+	flag.Parse()
+	tokenPath = *tokenFile
+	sess.librespotName = *librespotName
+	cfg.clientID = *clientID
+	cfg.redirectURL = *redirect
+	if cfg.clientID == "" && *clientIDFile != "" {
+		if b, err := os.ReadFile(*clientIDFile); err == nil {
+			cfg.clientID = strings.TrimSpace(string(b))
+		}
+	}
+	if cfg.clientID != "" {
+		log.Printf("OAuth client id loaded (%d chars); redirect=%s", len(cfg.clientID), cfg.redirectURL)
+	} else {
+		log.Printf("no client id set — /auth/login will 412 until you provide one")
+	}
+
+	registerProvider(&spotifyProvider{})
+	registerProvider(&youtubeProvider{})
+
+	// First-party lossless downloaders (self-register only if their credential
+	// file exists in /media/internal/). No middleman — direct service APIs.
+	registerDownloader(newQobuzDL())
+	registerDownloader(newTidalDL())
+	registerDownloader(newDeezerDL())
+
+	restoreSession() // reload a persisted token, if any, so login survives restarts
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login", handleLoginRedirect) // short URL to type in the browser
+	mux.HandleFunc("/providers", withCORS(handleProviders))
+	mux.HandleFunc("/provider/", withCORS(handleProviderRoute))
+	mux.HandleFunc("/auth/login", withCORS(handleAuthLogin))
+	mux.HandleFunc("/auth/callback", handleAuthCallback) // browser redirect target (no CORS)
+	mux.HandleFunc("/auth/status", withCORS(handleAuthStatus))
+	mux.HandleFunc("/auth/token", withCORS(handleAuthToken)) // for the Accounts validator app
+	mux.HandleFunc("/me", withCORS(handleMe))                // Spotify profile (account label)
+	mux.HandleFunc("/download/providers", withCORS(handleDownloadProviders))
+	mux.HandleFunc("/download", withCORS(handleDownload)) // resolve ISRC -> first-party lossless -> file
+	mux.HandleFunc("/session", withCORS(handleSession))
+	mux.HandleFunc("/search", withCORS(handleSearch))
+	mux.HandleFunc("/browse/album", withCORS(handleBrowseAlbum))
+	mux.HandleFunc("/browse/artist", withCORS(handleBrowseArtist))
+	mux.HandleFunc("/me/playlists", withCORS(handleMyPlaylists))
+	mux.HandleFunc("/player/load", withCORS(handlePlayerLoad))
+	mux.HandleFunc("/player/play", withCORS(handlePlayerPlay))
+	mux.HandleFunc("/player/pause", withCORS(handlePlayerPause))
+	mux.HandleFunc("/player/next", withCORS(handlePlayerNext))
+	mux.HandleFunc("/player/prev", withCORS(handlePlayerPrev))
+	mux.HandleFunc("/player/seek", withCORS(handlePlayerSeek))
+	mux.HandleFunc("/player/volume", withCORS(handlePlayerVolume))
+	mux.HandleFunc("/player/status", withCORS(handlePlayerStatus))
+
+	log.Printf("spotify-webos-service listening on http://%s (playback device: %q)", *addr, *librespotName)
+	if err := http.ListenAndServe(*addr, mux); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// withCORS allows the file:// / app-origin Enyo UI to call us on localhost.
+func withCORS(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s (origin=%q)", r.Method, r.URL.Path, r.Header.Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h(w, r)
+	}
+}
+
+func writeJSON(w http.ResponseWriter, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func httpErr(w http.ResponseWriter, code int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}

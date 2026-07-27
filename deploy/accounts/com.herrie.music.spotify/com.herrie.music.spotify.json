@@ -1,0 +1,39 @@
+[{
+    "templateId": "com.herrie.music.spotify",
+    "loc_name": "Spotify",
+    "icon": {
+        "loc_32x32": "images/spotify-32x32.png",
+        "loc_48x48": "images/spotify-48x48.png"
+    },
+    "validator": {
+        "customUI": {
+            "appId": "com.herrie.musicauth",
+            "name": "validator.html"
+        }
+    },
+    "loc_usernameLabel": "SPOTIFY ACCOUNT",
+    "readPermissions": [
+        "com.herrie.musicspotify.service",
+        "com.herrie.musicspotify",
+        "com.herrie.musicauth"
+    ],
+    "writePermissions": [
+        "com.herrie.musicspotify.service",
+        "com.herrie.musicspotify",
+        "com.herrie.musicauth"
+    ],
+    "capabilityProviders": [
+        {
+            "capability": "Music",
+            "capabilitySubtype": "STREAMING",
+            "id": "com.herrie.music.spotify.streaming",
+            "alwaysOn": true,
+            "loc_shortName": "Spotify",
+            "icon": {
+                "loc_32x32": "images/spotify-32x32.png",
+                "loc_48x48": "images/spotify-48x48.png",
+                "splitter": "images/spotify-32x32.png"
+            }
+        }
+    ]
+}]

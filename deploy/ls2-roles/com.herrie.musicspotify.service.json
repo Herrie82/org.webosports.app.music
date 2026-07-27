@@ -1,0 +1,26 @@
+{
+    "//": "Candidate LS2 role letting our backend id reach the Accounts service.",
+    "//2": "On legacy webOS 3.0.5 the dev bus is permissive and `luna-send -a` may",
+    "//3": "already succeed without this; deploy it only if readCredentials returns",
+    "//4": "a permission error. luna-send impersonates this name via -a.",
+    "role": {
+        "exeName": "/usr/bin/luna-send",
+        "type": "regular",
+        "allowedNames": [
+            "com.herrie.musicspotify.service",
+            "com.herrie.musicspotify",
+            "com.herrie.musicauth"
+        ]
+    },
+    "permissions": [
+        {
+            "service": "com.herrie.musicspotify.service",
+            "inbound": ["*"],
+            "outbound": [
+                "com.palm.service.accounts",
+                "com.palm.service.accounts.*",
+                "com.palm.db"
+            ]
+        }
+    ]
+}

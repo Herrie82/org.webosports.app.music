@@ -1,0 +1,25 @@
+# generated build artifacts
+build-output/
+*.ipk
+
+# compiled backend binary (built by deploy scripts)
+spotify-webos-service
+service/spotify-webos-service
+
+# on-device secrets — NEVER commit (these live on the device at /media/internal)
+*-token.json
+spotify-token.json
+qobuz-auth
+deezer-arl
+tidal-token
+*.arl
+spotify-client-id
+
+# editor / OS
+.DS_Store
+*.swp
+*~
+
+# tooling
+.claude/
+node_modules/

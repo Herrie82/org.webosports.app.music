@@ -1,0 +1,17 @@
+.spotify-view { height: 100%; background: #1a1a1a; }
+.spotify-title { font-size: 20px; font-weight: bold; color: #1db954; padding-left: 8px; }
+.spotify-authlabel { font-size: 14px; color: #aaa; padding-right: 10px; }
+.spotify-loginrow { padding: 16px; }
+.spotify-hint, .spotify-status { color: #888; font-size: 13px; padding: 4px 16px; }
+.spotify-searchrow { padding: 10px 12px; }
+.spotify-searchrow .enyo-input { margin-right: 8px; }
+.spotify-results { padding: 0 6px; background: #1a1a1a; }
+/* Force the dark theme onto the rows: the stock Palm "Item" kind renders on a
+   light background, which hid the white title while the gray subtitle showed. */
+.spotify-row { padding: 6px 8px; border-bottom: 1px solid #2a2a2a; background: #1a1a1a !important; color: #fff; }
+.spotify-art { width: 48px; height: 48px; margin-right: 10px; background: #333; }
+.spotify-meta { overflow: hidden; background: transparent; }
+.spotify-row-title { color: #fff !important; font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spotify-row-sub { color: #9a9a9a !important; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* nav entry icon — reuse a generic look */
+.navigation .spotify .icon { background: #1db954; border-radius: 3px; }

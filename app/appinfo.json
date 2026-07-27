@@ -1,0 +1,15 @@
+{
+ "id": "com.herrie.musicspotify",
+ "version": "0.4.1",
+ "vendor": "Herrie",
+ "type": "web",
+ "main": "index.html",
+ "title": "Music+Spotify",
+ "icon": "icon.png",
+ "splashicon": "icon-256x256.png",
+ "miniicon": "images/notification-small.png",
+ "noWindow": true,
+ "uiRevision": 2,
+ "debug": false,
+ "removable": true
+}

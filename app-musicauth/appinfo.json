@@ -1,0 +1,14 @@
+{
+	"id": "com.herrie.musicauth",
+	"version": "0.1.6",
+	"vendor": "Herrie",
+	"type": "web",
+	"main": "validator.html",
+	"title": "Music Account",
+	"visible": false,
+	"icon": "icon.png",
+	"splashicon": "icon.png",
+	"noWindow": true,
+	"uiRevision": 2,
+	"requiredMemory": 32
+}
