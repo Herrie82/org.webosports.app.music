@@ -77,7 +77,8 @@ enyo.kind({
 	buildTabs: function (providers) {
 		var kids = this.$.tabs.children;
 		for (var k = kids.length - 1; k >= 0; k--) { if (kids[k] && kids[k].destroy) { kids[k].destroy(); } }
-		var list = enyo.filter(providers, function (p) { return p.id !== "spotify"; });
+		var list = [];
+		enyo.forEach(providers, function (p) { if (p && p.id !== "spotify") { list.push(p); } });
 		if (!list.length) { this.$.authLabel.setContent($L("No connectors")); return; }
 		enyo.forEach(list, function (p) {
 			this.$.tabs.createComponent({
