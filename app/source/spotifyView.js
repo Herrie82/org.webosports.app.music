@@ -229,6 +229,7 @@ enyo.kind({
 	doSearch: function () {
 		var q = this.$.search.getValue();
 		if (!q) { return; }
+		this._searchSeq = (this._searchSeq || 0) + 1; // unique per search so the playback list rebuilds (see connectorView)
 		this.$.status.setContent($L("Searching…"));
 		this._get("/search?type=track&limit=50&q=" + encodeURIComponent(q),
 			enyo.bind(this, function (d) { this.renderResults((d && d.tracks) || []); }),
@@ -292,7 +293,7 @@ enyo.kind({
 		this._startStatusPoll();
 		this.doSetPlaybackList({
 			arSetPlaybackList: list, intStartTrackIndex: start, intStartTrackTime: 0,
-			strOriginListID: "spotify-search", strListQuery: JSON.stringify({ spotify: true })
+			strOriginListID: "spotify-search", strListQuery: JSON.stringify({ spotify: true, seq: this._searchSeq || 0 })
 		});
 	},
 

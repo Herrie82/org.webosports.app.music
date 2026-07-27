@@ -115,6 +115,11 @@ enyo.kind({
 	doSearch: function () {
 		var q = this.$.search.getValue();
 		if (!q || !this._provider) { return; }
+		// Bump a sequence so each search yields a UNIQUE strListQuery — otherwise
+		// kindPlaybackList (which only rebuilds when the origin id/query changes)
+		// keeps the PREVIOUS results and switchTrack()s into the stale list, playing
+		// the wrong song.
+		this._searchSeq = (this._searchSeq || 0) + 1;
 		this.$.status.setContent($L("Searching ") + this._providerName + "…");
 		this._get("/provider/" + this._provider + "/search?limit=40&q=" + encodeURIComponent(q),
 			enyo.bind(this, function (d) { this.renderResults((d && d.tracks) || []); }),
@@ -173,7 +178,7 @@ enyo.kind({
 		this._startStatusPoll();
 		this.doSetPlaybackList({
 			arSetPlaybackList: list, intStartTrackIndex: start, intStartTrackTime: 0,
-			strOriginListID: "connector-" + this._provider, strListQuery: JSON.stringify({ connector: this._provider })
+			strOriginListID: "connector-" + this._provider, strListQuery: JSON.stringify({ connector: this._provider, seq: this._searchSeq || 0 })
 		});
 	},
 

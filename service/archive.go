@@ -41,10 +41,12 @@ func (a *archiveProvider) Search(ctx context.Context, query string, limit int) (
 	if limit <= 0 || limit > 40 {
 		limit = 25
 	}
-	// Sort by downloads so popular real music floats up (default sort surfaces
-	// audio-fingerprint/derived junk items).
-	u := fmt.Sprintf("https://archive.org/advancedsearch.php?q=%s+AND+mediatype%%3A%%28audio%%29&fl[]=identifier&fl[]=title&fl[]=creator&sort[]=downloads+desc&rows=%d&page=1&output=json",
-		url.QueryEscape(query), limit)
+	// Search the title/creator fields (full-text matched loosely on reviews/metadata,
+	// returning unrelated items) and sort by downloads so popular real music floats up
+	// (default sort surfaces audio-fingerprint/derived junk items).
+	q := fmt.Sprintf("(title:(%s) OR creator:(%s)) AND mediatype:(audio)", query, query)
+	u := fmt.Sprintf("https://archive.org/advancedsearch.php?q=%s&fl[]=identifier&fl[]=title&fl[]=creator&sort[]=downloads+desc&rows=%d&page=1&output=json",
+		url.QueryEscape(q), limit)
 	body, err := httpGetString(ctx, u)
 	if err != nil {
 		return nil, err
