@@ -91,6 +91,10 @@ func main() {
 	mux.HandleFunc("/login", handleLoginRedirect) // short URL to type in the browser
 	mux.HandleFunc("/providers", withCORS(handleProviders))
 	mux.HandleFunc("/provider/", withCORS(handleProviderRoute))
+	mux.HandleFunc("/stream/pause", withCORS(handleStreamPause))
+	mux.HandleFunc("/stream/resume", withCORS(handleStreamResume))
+	mux.HandleFunc("/stream/stop", withCORS(handleStreamStop))
+	mux.HandleFunc("/stream/status", withCORS(handleStreamStatus))
 	mux.HandleFunc("/auth/login", withCORS(handleAuthLogin))
 	mux.HandleFunc("/auth/callback", handleAuthCallback) // browser redirect target (no CORS)
 	mux.HandleFunc("/auth/status", withCORS(handleAuthStatus))
