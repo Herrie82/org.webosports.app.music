@@ -23,3 +23,10 @@ spotify-client-id
 # tooling
 .claude/
 node_modules/
+
+# upstream librespot build checkout (has its own .git; 747M) — kept locally for
+# builds, not committed. Our cross-compile config is preserved in librespot/cargo-config.toml.
+librespot-src/
+
+# decompiled proprietary MPR reference (Hedami) — kept locally, not published
+reference/
