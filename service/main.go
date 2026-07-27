@@ -86,6 +86,7 @@ func main() {
 	registerDownloader(newDeezerDL())
 
 	restoreSession() // reload a persisted token, if any, so login survives restarts
+	loadYtToken()    // reload a persisted YouTube OAuth token, if any
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/login", handleLoginRedirect) // short URL to type in the browser
@@ -95,6 +96,9 @@ func main() {
 	mux.HandleFunc("/stream/resume", withCORS(handleStreamResume))
 	mux.HandleFunc("/stream/stop", withCORS(handleStreamStop))
 	mux.HandleFunc("/stream/status", withCORS(handleStreamStatus))
+	mux.HandleFunc("/ytauth/start", withCORS(handleYtAuthStart))   // begin device-code login
+	mux.HandleFunc("/ytauth/poll", withCORS(handleYtAuthPoll))     // poll for authorisation
+	mux.HandleFunc("/ytauth/status", withCORS(handleYtAuthStatus)) // is YouTube signed in?
 	mux.HandleFunc("/auth/login", withCORS(handleAuthLogin))
 	mux.HandleFunc("/auth/callback", handleAuthCallback) // browser redirect target (no CORS)
 	mux.HandleFunc("/auth/status", withCORS(handleAuthStatus))

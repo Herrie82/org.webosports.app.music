@@ -50,10 +50,29 @@ var itPlayerClients = []itClient{
 		extra:     map[string]interface{}{"androidSdkVersion": 30}},
 }
 
+// Clients used WITH the user's OAuth token (Authorization: Bearer). The token is
+// issued for the "YouTube on TV" client, so it MUST be paired with the TVHTML5
+// client context (other clients 400). Authenticated requests clear the bot-check,
+// so official music resolves. Tried before the anonymous clients when signed in.
+var itAuthedClients = []itClient{
+	// Mobile clients return UN-ciphered URLs; with the OAuth token they also clear
+	// the bot-check. TVHTML5 is a fallback (clears the check but returns ciphered
+	// URLs we can't yet descramble).
+	{name: "ANDROID_VR", version: "1.60.19",
+		userAgent: "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12; Quest 3)",
+		extra:     map[string]interface{}{"androidSdkVersion": 32, "deviceModel": "Quest 3"}},
+	{name: "ANDROID", version: "19.29.37",
+		userAgent: "com.google.android.youtube/19.29.37 (Linux; U; Android 11) gzip",
+		extra:     map[string]interface{}{"androidSdkVersion": 30}},
+	{name: "TVHTML5", version: "7.20240724.13.00"},
+}
+
 var itHTTP = &http.Client{Timeout: 25 * time.Second}
 
 // innertubePost issues an InnerTube v1 call and returns the raw top-level fields.
-func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body map[string]interface{}) (map[string]json.RawMessage, error) {
+// If bearer != "" the request is authenticated as the signed-in YouTube account
+// (Authorization: Bearer), which clears the "confirm you're not a bot" gate.
+func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body map[string]interface{}, bearer string) (map[string]json.RawMessage, error) {
 	client := map[string]interface{}{
 		"clientName": cl.name, "clientVersion": cl.version, "hl": "en", "gl": "US",
 	}
@@ -65,7 +84,12 @@ func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body
 		full[k] = v
 	}
 	buf, _ := json.Marshal(full)
-	url := "https://" + host + "/youtubei/v1/" + endpoint + "?key=" + innertubeKey + "&prettyPrint=false"
+	// OAuth (bearer) requests must NOT carry the web API key — mixing them yields
+	// http 400. Anonymous requests use the key.
+	url := "https://" + host + "/youtubei/v1/" + endpoint + "?prettyPrint=false"
+	if bearer == "" {
+		url += "&key=" + innertubeKey
+	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(buf))
 	if err != nil {
 		return nil, err
@@ -75,6 +99,9 @@ func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body
 		req.Header.Set("User-Agent", cl.userAgent)
 	}
 	req.Header.Set("Origin", "https://"+host)
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
 	resp, err := itHTTP.Do(req)
 	if err != nil {
 		return nil, err
@@ -97,11 +124,30 @@ func (y *youtubeProvider) StreamURL(ctx context.Context, trackID string) (string
 	if trackID == "" {
 		return "", fmt.Errorf("no track id")
 	}
-	var lastErr error
+	// Build the attempt list: signed-in clients first (they clear the bot-check),
+	// then anonymous fallbacks for unrestricted videos.
+	type attempt struct {
+		cl     itClient
+		bearer string
+	}
+	var attempts []attempt
+	token := ytAccessToken()
+	if token != "" {
+		for _, cl := range itAuthedClients {
+			attempts = append(attempts, attempt{cl, token})
+		}
+	}
 	for _, cl := range itPlayerClients {
+		attempts = append(attempts, attempt{cl, ""})
+	}
+	log.Printf("youtube resolve %s: authed=%v (%d attempts)", trackID, token != "", len(attempts))
+
+	var lastErr error
+	for _, a := range attempts {
+		cl := a.cl
 		res, err := innertubePost(ctx, "www.youtube.com", "player", cl, map[string]interface{}{
 			"videoId": trackID, "contentCheckOk": true, "racyCheckOk": true,
-		})
+		}, a.bearer)
 		if err != nil {
 			log.Printf("youtube player %s(%s): %v", cl.name, trackID, err)
 			lastErr = err
@@ -132,10 +178,14 @@ func (y *youtubeProvider) StreamURL(ctx context.Context, trackID string) (string
 				MimeType        string `json:"mimeType"`
 				SignatureCipher string `json:"signatureCipher"`
 			} `json:"adaptiveFormats"`
+			HlsManifestURL  string `json:"hlsManifestUrl"`
+			DashManifestURL string `json:"dashManifestUrl"`
 		}
 		if json.Unmarshal(sd, &streaming) != nil {
 			continue
 		}
+		log.Printf("youtube player %s(%s): formats=%d hls=%v dash=%v", cl.name, trackID,
+			len(streaming.AdaptiveFormats), streaming.HlsManifestURL != "", streaming.DashManifestURL != "")
 		best := ""
 		for _, want := range []int{140, 251, 250, 249} { // AAC first, then Opus tiers
 			for _, f := range streaming.AdaptiveFormats {
@@ -178,7 +228,7 @@ func (y *youtubeProvider) Search(ctx context.Context, query string, limit int) (
 	res, err := innertubePost(ctx, "www.youtube.com", "search", web, map[string]interface{}{
 		"query":  query,
 		"params": "EgIQAQ%3D%3D", // filter: videos only
-	})
+	}, ytAccessToken())
 	if err != nil {
 		return nil, err
 	}
