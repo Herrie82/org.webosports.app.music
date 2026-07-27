@@ -108,7 +108,7 @@ func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		snip, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
+		snip, _ := io.ReadAll(io.LimitReader(resp.Body, 900))
 		return nil, fmt.Errorf("innertube %s/%s: http %d: %s", cl.name, endpoint, resp.StatusCode, strings.TrimSpace(string(snip)))
 	}
 	var out map[string]json.RawMessage
@@ -186,24 +186,41 @@ func (y *youtubeProvider) StreamURL(ctx context.Context, trackID string) (string
 		}
 		log.Printf("youtube player %s(%s): formats=%d hls=%v dash=%v", cl.name, trackID,
 			len(streaming.AdaptiveFormats), streaming.HlsManifestURL != "", streaming.DashManifestURL != "")
-		best := ""
-		for _, want := range []int{140, 251, 250, 249} { // AAC first, then Opus tiers
-			for _, f := range streaming.AdaptiveFormats {
-				if f.Itag == want && f.URL != "" {
-					best = f.URL
-					break
+		// Pick the best audio format (AAC 140, then Opus tiers, then any audio),
+		// taking either its direct URL or its ciphered form.
+		var directURL, cipher string
+		pick := func(itag int) bool {
+			for i := range streaming.AdaptiveFormats {
+				f := &streaming.AdaptiveFormats[i]
+				match := itag > 0 && f.Itag == itag
+				if itag == 0 {
+					match = strings.HasPrefix(f.MimeType, "audio/")
+				}
+				if match {
+					if f.URL != "" {
+						directURL = f.URL
+						return true
+					}
+					if f.SignatureCipher != "" {
+						cipher = f.SignatureCipher
+						return true
+					}
 				}
 			}
-			if best != "" {
+			return false
+		}
+		for _, want := range []int{140, 251, 250, 249, 0} {
+			if pick(want) {
 				break
 			}
 		}
-		if best == "" { // any audio-only with a direct URL
-			for _, f := range streaming.AdaptiveFormats {
-				if strings.HasPrefix(f.MimeType, "audio/") && f.URL != "" {
-					best = f.URL
-					break
-				}
+		best := directURL
+		if best == "" && cipher != "" { // TVHTML5 gives ciphered URLs — descramble via base.js
+			if u, derr := decipherSignatureCipher(ctx, cipher); derr == nil {
+				best = u
+				log.Printf("youtube player %s(%s): resolved via decipher", cl.name, trackID)
+			} else {
+				log.Printf("youtube player %s(%s): decipher failed: %v", cl.name, trackID, derr)
 			}
 		}
 		if best != "" {
