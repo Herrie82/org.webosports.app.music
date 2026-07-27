@@ -146,9 +146,10 @@ enyo.kind({
 	{
 		
 		this.log(boolAudioPlaying);
-		// Show the PAUSE glyph while playing, PLAY glyph while paused (the CSS
-		// icons for .play vs .play.paused are the other way round, so flip here).
-		this.$.btnPlay.addRemoveClass("paused", boolAudioPlaying);
+		// Sprite: .play => 0 -32px (PAUSE glyph), .play.paused => 0 0 (PLAY glyph).
+		// So while playing we must NOT have the "paused" class (show pause glyph),
+		// and while paused we must add it (show play glyph). Hence the negation.
+		this.$.btnPlay.addRemoveClass("paused", !boolAudioPlaying);
 		//this.$.btnPlay.srcChanged();
 		
 	},

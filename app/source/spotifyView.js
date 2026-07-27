@@ -286,6 +286,7 @@ enyo.kind({
 			};
 		});
 		this._playingUri = this.tracks[start] ? this.tracks[start].path : "";
+		this._expectedUri = this._playingUri; this._expectedTries = 0; // backend still reports old track briefly
 		this._isPlaying = true;
 		this._updatePlayIcons();
 		this._startStatusPoll();
@@ -308,6 +309,17 @@ enyo.kind({
 		this._get("/player/status", enyo.bind(this, function (d) {
 			if (!d) { return; }
 			var uri = d.uri || "", playing = !!d.is_playing;
+			// After a tap we optimistically light up the NEW row, but the backend
+			// keeps reporting the PREVIOUS track for ~1s until /player/load lands.
+			// Suppress the stale uri until it catches up (bounded to a few polls so
+			// it can't get stuck) so the indicator doesn't jump back to the old song.
+			if (this._expectedUri && uri !== this._expectedUri) {
+				if ((this._expectedTries = (this._expectedTries || 0) + 1) <= 4) {
+					if (playing !== this._isPlaying) { this._isPlaying = playing; this._updatePlayIcons(); }
+					return;
+				}
+			}
+			this._expectedUri = null; this._expectedTries = 0;
 			if (uri !== this._playingUri || playing !== this._isPlaying) {
 				this._playingUri = uri; this._isPlaying = playing; this._updatePlayIcons();
 			}

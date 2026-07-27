@@ -87,6 +87,9 @@ enyo.kind({
 				this.setBoolAudioPlaying(true);
 				this.setBoolAudioPaused(false);
 				this._startPolling();
+				// Mirror kindAudioManager.onAudioPlaying: fire BOTH so the transport
+				// UI (bottom bar) flips to the pause glyph the moment playback starts.
+				this.doPausePlay(this.boolAudioPlaying);
 				this.doPlaying();
 			}),
 			enyo.bind(this, function (status, text) {
@@ -102,7 +105,7 @@ enyo.kind({
 			this._call("POST", "/player/pause", null, enyo.bind(this, function () {
 				this.setBoolAudioPaused(true);
 				this.setBoolAudioPlaying(false);
-				this.doPausePlay({ paused: true });
+				this.doPausePlay(this.boolAudioPlaying); // boolean, like kindAudioManager
 			}));
 			return true;
 		}
@@ -110,7 +113,7 @@ enyo.kind({
 		this._call("POST", "/player/play", null, enyo.bind(this, function () {
 			this.setBoolAudioPaused(false);
 			this.setBoolAudioPlaying(true);
-			this.doPausePlay({ paused: false });
+			this.doPausePlay(this.boolAudioPlaying); // boolean, like kindAudioManager
 		}));
 		return false;
 	},
@@ -154,9 +157,17 @@ enyo.kind({
 	_poll: function () {
 		this._call("GET", "/player/status", null, enyo.bind(this, function (s) {
 			if (!s) { return; }
-			this._positionSec = s.position_ms ? Math.floor(s.position_ms / 1000) : this._positionSec;
+			// End-of-track must NOT fire on a mid-song glitch: librespot momentarily
+			// reports is_playing:false / position:0 during a restart or Connect
+			// hiccup, which was randomly skipping to the next track. Only treat a
+			// zero-position stop as "ended" if we were ALREADY near the end.
+			var wasNearEnd = this._durationSec > 0 && this._positionSec >= (this._durationSec - 15);
 			if (s.duration_ms) { this._durationSec = Math.floor(s.duration_ms / 1000); }
-			if (s.state === "ended" || (s.is_playing === false && s.position_ms === 0 && this.boolAudioPlaying)) {
+			var ended = (s.state === "ended") ||
+				(s.is_playing === false && !s.position_ms && this.boolAudioPlaying && wasNearEnd);
+			// Don't clobber the last good position with a glitchy 0.
+			if (s.position_ms) { this._positionSec = Math.floor(s.position_ms / 1000); }
+			if (ended) {
 				this._stopPolling();
 				this.setBoolAudioPlaying(false);
 				this.doEnded();
