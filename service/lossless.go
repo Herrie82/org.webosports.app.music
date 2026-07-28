@@ -65,9 +65,11 @@ func handleDownloadProviders(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 	out := []row{}
+	providersMu.RLock()
 	for _, d := range downloaders {
 		out = append(out, row{ID: d.ID(), Name: d.Name()})
 	}
+	providersMu.RUnlock()
 	writeJSON(w, map[string]interface{}{"downloaders": out})
 }
 
@@ -82,7 +84,12 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		Provider  string `json:"provider"`
 	}
 	_ = decodeJSON(r, &body)
-	if len(downloaders) == 0 {
+	// Snapshot under RLock — the per-downloader work below does network I/O and
+	// must not hold the lock (refresh rebuilds this slice on credential changes).
+	providersMu.RLock()
+	dls := append([]LosslessDownloader(nil), downloaders...)
+	providersMu.RUnlock()
+	if len(dls) == 0 {
 		httpErr(w, http.StatusPreconditionFailed, "no lossless downloader configured (add credentials in /media/internal/)")
 		return
 	}
@@ -102,7 +109,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var lastErr error
-	for _, d := range downloaders {
+	for _, d := range dls {
 		if body.Provider != "" && d.ID() != body.Provider {
 			continue
 		}

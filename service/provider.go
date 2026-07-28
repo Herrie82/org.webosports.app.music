@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // MusicProvider is the connector contract (see docs/MUSIC-CONNECTORS.md). Each
@@ -37,9 +38,19 @@ type providerTrack struct {
 	Path string `json:"path"`
 }
 
-var providers = map[string]MusicProvider{}
+// providersMu guards `providers` (and the first-party `downloaders`/`dzDL` state in
+// providerauth.go), which are mutated at runtime when a music account is added via
+// the Accounts flow. Reads on the hot search/play path take RLock.
+var (
+	providers   = map[string]MusicProvider{}
+	providersMu sync.RWMutex
+)
 
-func registerProvider(p MusicProvider) { providers[p.ID()] = p }
+func registerProvider(p MusicProvider) {
+	providersMu.Lock()
+	providers[p.ID()] = p
+	providersMu.Unlock()
+}
 
 // GET /providers -> [{id,name,available}]
 func handleProviders(w http.ResponseWriter, r *http.Request) {
@@ -48,9 +59,11 @@ func handleProviders(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 	out := []row{}
+	providersMu.RLock()
 	for _, p := range providers {
 		out = append(out, row{ID: p.ID(), Name: p.Name()})
 	}
+	providersMu.RUnlock()
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	writeJSON(w, map[string]interface{}{"providers": out})
 }
@@ -66,7 +79,9 @@ func handleProviderRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, action := parts[0], parts[1]
+	providersMu.RLock()
 	p := providers[id]
+	providersMu.RUnlock()
 	if p == nil {
 		httpErr(w, http.StatusNotFound, "unknown provider: "+id)
 		return

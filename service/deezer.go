@@ -93,12 +93,15 @@ func (d *deezerProvider) StreamURL(ctx context.Context, trackID string) (string,
 // handleDzStream fetches a scrambled Deezer stream and serves it descrambled, so the
 // gst stream player can play it. GET /dzstream?id=<deezerTrackID>.
 func handleDzStream(w http.ResponseWriter, r *http.Request) {
-	if dzDL == nil || !dzDL.Available() {
+	providersMu.RLock()
+	dl := dzDL
+	providersMu.RUnlock()
+	if dl == nil || !dl.Available() {
 		http.Error(w, "deezer not configured", http.StatusServiceUnavailable)
 		return
 	}
 	id := r.URL.Query().Get("id")
-	f, err := dzDL.FileURL(r.Context(), id)
+	f, err := dl.FileURL(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
