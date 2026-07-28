@@ -44,8 +44,9 @@ enyo.kind({
 					  autocorrect: false, autoWordComplete: false, autoCapitalize: "lowercase", oninput: "validateInput" }
 				]},
 				{ name: "passwordGroup", showing: false, kind: "RowGroup", caption: "PASSWORD", className: "accounts-group", components: [
-					{ kind: "Input", name: "password", hint: "Password", type: "password", spellcheck: false,
-					  autocorrect: false, autoWordComplete: false, oninput: "validateInput" }
+					// PasswordInput (not Input+type) so the DOM input is masked — it sets
+					// the type="password" attribute itself (show-then-hide behaviour).
+					{ kind: "PasswordInput", name: "password", hint: "Password", autoWordComplete: false, oninput: "validateInput" }
 				]},
 				{ name: "arlGroup", showing: false, kind: "RowGroup", caption: "ARL COOKIE", className: "accounts-group", components: [
 					{ kind: "Input", name: "arl", hint: "Paste your deezer ARL", type: "text", spellcheck: false,
