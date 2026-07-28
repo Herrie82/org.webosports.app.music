@@ -11,7 +11,6 @@
 enyo.kind({
 	name: "Accounts.accountGroup",
 	kind: "enyo.Control",
-	style: "margin-top:15px;",
 	published: { accounts: [], caption: "", ownerList: null },
 	events: { onAccountRow_Selected: "" },
 	components: [
@@ -57,7 +56,9 @@ enyo.kind({
 		{name: "accounts", kind: "Accounts.getAccounts", onGetAccounts_AccountsAvailable: "onAccountsAvailable"},
 		// grouped: outer box (SYNERGY ACCOUNTS) with per-category inner boxes inside
 		{name: "synergyBox", kind: "RowGroup", className: "accounts-group", showing: false, components: [
-			{name: "groups"}
+			// negative margin pulls the inner category boxes out to the outer frame,
+			// removing the top/bottom/side spacing inside the SYNERGY ACCOUNTS box.
+			{name: "groups", style: "margin: -8px -6px;"}
 		]},
 		// flat (SIM etc.)
 		{name: "list", kind: "VirtualRepeater", onSetupRow: "listGetItem", onclick: "accountSelected", className:"accounts-rowgroup-item", components: [
