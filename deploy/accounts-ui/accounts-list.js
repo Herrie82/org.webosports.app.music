@@ -46,7 +46,7 @@ enyo.kind({
 enyo.kind({
 	name: "Accounts.accountsList",
 	kind: enyo.Control,
-	published: { grouped: false },
+	published: { grouped: false, groupTitle: "" },
 	events: {
 		onAccountsList_AccountSelected: "",
 		onAccountsList_AddAccountTemplates: "",
@@ -120,6 +120,10 @@ enyo.kind({
 	renderGrouped: function() {
 		var kids = this.$.groups.children.slice(0);
 		for (var d = 0; d < kids.length; d++) { kids[d].destroy(); }
+		if (this.groupTitle) {		// overall section heading (e.g. "SYNERGY ACCOUNTS")
+			this.$.groups.createComponent({content: this.groupTitle, className: "box-center",
+				style: "margin-top:16px; padding:0 3px 2px 3px; font-size:12px; font-weight:bold; color:#7c7c7c; letter-spacing:0.05em;"}, {owner: this});
+		}
 		var byCat = {};
 		for (var i = 0; i < this.accounts.length; i++) {
 			var cat = this._categoryCaption(this.accounts[i]);
