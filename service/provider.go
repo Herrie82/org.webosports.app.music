@@ -52,6 +52,20 @@ func registerProvider(p MusicProvider) {
 	providersMu.Unlock()
 }
 
+// providerReady reports whether a provider is usable right now, so /providers can hide
+// account-required connectors until their account is added. Credential providers
+// (Qobuz/Tidal) are only in the registry once configured, so they're inherently gated;
+// Spotify is always registered but is useless without a login session.
+func providerReady(id string) bool {
+	if id == "spotify" {
+		sess.mu.RLock()
+		ready := sess.client != nil
+		sess.mu.RUnlock()
+		return ready
+	}
+	return true
+}
+
 // GET /providers -> [{id,name,available}]
 func handleProviders(w http.ResponseWriter, r *http.Request) {
 	type row struct {
@@ -61,6 +75,9 @@ func handleProviders(w http.ResponseWriter, r *http.Request) {
 	out := []row{}
 	providersMu.RLock()
 	for _, p := range providers {
+		if !providerReady(p.ID()) {
+			continue
+		}
 		out = append(out, row{ID: p.ID(), Name: p.Name()})
 	}
 	providersMu.RUnlock()
