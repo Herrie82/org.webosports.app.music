@@ -71,7 +71,7 @@ enyo.kind({
 					{ name: "codeDigits", style: "font-size:34px; font-weight:bold; letter-spacing:6px; padding:8px 0 6px; font-family:monospace;", content: "" },
 					{ className: "accounts-body-text", style: "opacity:0.6; font-size:13px;", content: "On your phone or computer: open link.tidal.com, sign in, and enter the code above." }
 				]},
-				{ name: "codeRetry", showing: false, kind: "Button", caption: "Get a new code", className: "accounts-btn", onclick: "startTidal" }
+				{ name: "codeRetry", showing: false, kind: "Button", caption: "Try again", className: "accounts-btn", onclick: "startTidalWeb" }
 			]},
 
 			// Spotify OAuth web view (hidden until needed)
@@ -140,7 +140,10 @@ enyo.kind({
 			case "tidal":
 				this.$.entryBox.setShowing(false);
 				this.$.codeBox.setShowing(true);
-				this.startTidal();
+				this.$.codeWrap.setShowing(false);
+				this.$.codeTitle.setContent("Sign in to Tidal");
+				this.$.codeStatus.setContent("Loading Tidal sign-in…");
+				this.startTidalWeb();
 				break;
 			default: // noauth
 				this.$.bodyText.setContent("Add <b>" + this.serviceName + "</b> as a music source.");
@@ -226,36 +229,43 @@ enyo.kind({
 		}));
 	},
 
-	// --- Tidal device-code ---
-	startTidal: function () {
-		this.$.codeWrap.setShowing(false);
+	// --- Tidal PKCE web login (webview) ---
+	startTidalWeb: function () {
 		this.$.codeRetry.setShowing(false);
-		this.$.codeStatus.setContent("Getting a code…");
-		this.post(BACKEND + "/tidalauth/start", {}, enyo.bind(this, function (ok, j) {
-			if (!ok || !j || !j.user_code) {
+		this.get(BACKEND + "/tidalauth/start", enyo.bind(this, function (ok, j) {
+			if (!ok || !j || !j.authorize_url) {
 				this.$.codeStatus.setContent("Couldn't reach Tidal. Try again.");
 				this.$.codeRetry.setShowing(true);
 				return;
 			}
-			this.$.codeDigits.setContent(j.user_code);
-			this.$.codeWrap.setShowing(true);
-			this.$.codeStatus.setContent("Waiting for you to approve on Tidal…");
-			var ms = Math.max(2, (j.interval || 5)) * 1000;
-			this.startPollFn("tidalPollOnce", ms);
-		}));
-	},
-	tidalPollOnce: function () {
-		this.post(BACKEND + "/tidalauth/poll", {}, enyo.bind(this, function (ok, j) {
-			if (ok && j && j.status === "ok") {
-				this.stopPoll();
-				this.$.codeStatus.setContent("Tidal connected!");
-				this.finishService(j.username || "Tidal");
-			} else if (j && j.status === "error") {
-				this.stopPoll();
-				this.$.codeStatus.setContent("Tidal sign-in failed: " + (j.error || "please retry"));
-				this.$.codeRetry.setShowing(true);
+			this._tidalExchanging = false;
+			this.$.codeBox.setShowing(false);
+			try {
+				this.$.web.setShowing(true);
+				this.$.web.setUrl("atlas-simple:" + j.authorize_url);
+				this.$.web.render();
+			} catch (e) {
+				this.$.codeBox.setShowing(true);
+				this.$.codeStatus.setContent("Web view error: " + e);
 			}
 		}));
+	},
+	// Called from onWebLoad when the login redirects to tidal.com/login/auth?code=…
+	exchangeTidal: function (code) {
+		if (this._tidalExchanging) { return; }
+		this._tidalExchanging = true;
+		this.$.web.setShowing(false);
+		this.$.codeBox.setShowing(true);
+		this.$.codeWrap.setShowing(false);
+		this.$.codeStatus.setContent("Signing in to Tidal…");
+		this.post(BACKEND + "/tidalauth/exchange", { code: code }, enyo.bind(this, function (ok, j) {
+			if (ok && j && j.ok) { this.$.codeStatus.setContent("Tidal connected!"); this.finishService(j.username || "Tidal"); }
+			else { this.$.codeStatus.setContent("Tidal sign-in failed: " + ((j && j.error) || "please retry")); this.$.codeRetry.setShowing(true); }
+		}));
+	},
+	_extractParam: function (u, k) {
+		var m = new RegExp("[?&]" + k + "=([^&#]+)").exec(u || "");
+		return m ? decodeURIComponent(m[1]) : "";
 	},
 
 	// --- Spotify OAuth ---
@@ -272,7 +282,15 @@ enyo.kind({
 		this.startPollFn("spotifyPollOnce", 2000);
 	},
 	spotifyPollOnce: function () { this.attemptFinish(false); },
-	onWebLoad: function (s, u) { if (u && u.indexOf("/auth/callback") !== -1) { this.$.codeStatus && this.$.codeStatus.setContent("Finishing…"); } return true; },
+	onWebLoad: function (s, u) {
+		if (u && u.indexOf("/auth/callback") !== -1) { this.$.codeStatus.setContent("Finishing…"); }
+		// Tidal PKCE: the login redirects to tidal.com/login/auth?code=… — grab the code.
+		if (this.mode === "tidal" && u && u.indexOf("tidal.com/login/auth") !== -1 && u.indexOf("code=") !== -1) {
+			var code = this._extractParam(u, "code");
+			if (code) { this.exchangeTidal(code); }
+		}
+		return true;
+	},
 	fetchTokenAndFinish: function () {
 		this.get(BACKEND + "/auth/token", enyo.bind(this, function (ok, j) {
 			if (!(ok && j && j.refreshToken)) { this.finish({ returnValue: false, errorCode: "NO_TOKEN" }); return; }
