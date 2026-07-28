@@ -2,10 +2,47 @@
 // A watch keeps the list in sync as accounts are added/removed.
 //
 // CUSTOMISED (org.webosports.app.music accounts UX): with grouped:true the accounts are
-// shown in ONE RowGroup box (caption = groupTitle, e.g. "SYNERGY ACCOUNTS") with the
-// categories as sub-headers INSIDE the box (Email/Contacts/Messaging/Cloud/Music/…), in
-// the same order as the Add-Account list. Rows: icon + [name / capabilities] left &
-// TOP-aligned, credentials RIGHT-aligned (matching the left whitespace), error last.
+// shown as NESTED group boxes — an outer RowGroup (caption = groupTitle, "SYNERGY
+// ACCOUNTS") containing one inner RowGroup box PER CATEGORY (Email/Contacts/Messaging/
+// Cloud/Music/…), same order as the Add-Account list. Rows: icon + [name / capabilities]
+// left & TOP-aligned, credentials RIGHT-aligned (matching the left whitespace), error last.
+
+// One category box (inner RowGroup + VirtualRepeater), created per category inside the outer box.
+enyo.kind({
+	name: "Accounts.accountGroup",
+	kind: "enyo.Control",
+	style: "margin-top:15px;",
+	published: { accounts: [], caption: "", ownerList: null },
+	events: { onAccountRow_Selected: "" },
+	components: [
+		{name: "grp", kind: "RowGroup", className: "accounts-group", components: [
+			{name: "list", kind: "VirtualRepeater", className: "accounts-rowgroup-item", onSetupRow: "setupRow", onclick: "rowTapped", components: [
+				{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "start", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", style: "padding-top:6px; padding-bottom:6px;", components: [
+					{kind: "Image", name: "agIcon", className: "icon-image"},
+					{kind: "VFlexBox", align: "start", components: [
+						{name: "agName"},
+						{name: "agCat", style: "font-size:11px; color:#8a8a8a; margin-top:1px;"}
+					]},
+					{kind: "Control", flex: 1},
+					{name: "agEmail", className: "email-address enyo-text-ellipsis", style: "text-align:right;"},
+					{kind: "Image", name: "agErr", src: AccountsUtil.libPath + "images/header-warning-icon.png", className: "warning-icon"}
+				]}
+			]}
+		]}
+	],
+	create: function() { this.inherited(arguments); this.captionChanged(); },
+	captionChanged: function() { try { if (this.$.grp && this.$.grp.setCaption) { this.$.grp.setCaption(this.caption); } } catch (e) {} },
+	setAccounts: function(v) { this.accounts = v || []; this.$.list.setStripSize(this.accounts.length); this.$.list.render(); },
+	setupRow: function(inSender, inIndex) {
+		if (!this.accounts || inIndex >= this.accounts.length) { return false; }
+		if (this.ownerList) { this.ownerList.fillRow(this.$.agIcon, this.$.agName, this.$.agCat, this.$.agEmail, this.$.agErr, this.accounts[inIndex]); }
+		return true;
+	},
+	rowTapped: function(inSender, inEvent) {
+		var a = this.accounts[inEvent.rowIndex];
+		if (a) { this.doAccountRow_Selected({account: a}); }
+	}
+});
 
 enyo.kind({
 	name: "Accounts.accountsList",
@@ -18,24 +55,9 @@ enyo.kind({
 	},
 	components: [
 		{name: "accounts", kind: "Accounts.getAccounts", onGetAccounts_AccountsAvailable: "onAccountsAvailable"},
-		// grouped: ONE box, categories are sub-headers inside it
+		// grouped: outer box (SYNERGY ACCOUNTS) with per-category inner boxes inside
 		{name: "synergyBox", kind: "RowGroup", className: "accounts-group", showing: false, components: [
-			{name: "groupedList", kind: "VirtualRepeater", className: "accounts-rowgroup-item", onSetupRow: "groupedGetItem", onclick: "groupedTapped", components: [
-				// Static grey caption bar matching the RowGroup header ("SYNERGY ACCOUNTS"): white
-				// uppercase bold text on a grey gradient. (enyo-group-label itself can't be reused —
-				// it's absolutely positioned with a negative margin to overlay the group's top.)
-				{name: "catHeader", showing: false, style: "margin:0 -10px; padding:5px 0 5px 12px; background:#8c8c8c; background:-webkit-linear-gradient(top,#9d9d9d,#7d7d7d); background:linear-gradient(#9d9d9d,#7d7d7d); color:#fff; text-shadow:0 1px 0 #5f5f5f; font-weight:bold; font-size:11px; text-transform:uppercase; letter-spacing:0.03em;"},
-				{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "start", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", style: "padding-top:6px; padding-bottom:6px;", components: [
-					{kind: "Image", name: "accountIcon", className: "icon-image"},
-					{kind: "VFlexBox", align: "start", components: [
-						{name: "accountName"},
-						{name: "accountCategory", style: "font-size:11px; color:#8a8a8a; margin-top:1px;"}
-					]},
-					{kind: "Control", flex: 1},
-					{name: "emailAddress", className: "email-address enyo-text-ellipsis", style: "text-align:right;"},
-					{kind: "Image", name: "errorIcon", src: AccountsUtil.libPath + "images/header-warning-icon.png", className: "warning-icon"}
-				]}
-			]}
+			{name: "groups"}
 		]},
 		// flat (SIM etc.)
 		{name: "list", kind: "VirtualRepeater", onSetupRow: "listGetItem", onclick: "accountSelected", className:"accounts-rowgroup-item", components: [
@@ -98,8 +120,10 @@ enyo.kind({
 		}
 	},
 
-	// --- grouped rendering: one box, categories as interspersed sub-headers ---
+	// --- grouped rendering: outer box + inner per-category boxes ---
 	renderGrouped: function() {
+		var kids = this.$.groups.children.slice(0);
+		for (var d = 0; d < kids.length; d++) { kids[d].destroy(); }
 		var byCat = {}, i;
 		for (i = 0; i < this.accounts.length; i++) {
 			var cat = this._categoryCaption(this.accounts[i]);
@@ -109,35 +133,17 @@ enyo.kind({
 		var order = [];
 		for (var k = 0; k < this.displayOrder.length; k++) { if (byCat[this.displayOrder[k]]) { order.push(this.displayOrder[k]); } }
 		if (byCat[this.otherLabel]) { order.push(this.otherLabel); }
-		this._rows = [];
 		for (var o = 0; o < order.length; o++) {
-			this._rows.push({header: order[o]});
-			var items = byCat[order[o]];
-			for (var m = 0; m < items.length; m++) { this._rows.push({account: items[m]}); }
+			var g = this.$.groups.createComponent(
+				{kind: "Accounts.accountGroup", caption: order[o], ownerList: this, onAccountRow_Selected: "onGroupAccountSelected"}, {owner: this});
+			g.setAccounts(byCat[order[o]]);
 		}
 		if (this.$.synergyBox.setCaption) { this.$.synergyBox.setCaption(this.groupTitle); }
-		this.$.synergyBox.setShowing(this._rows.length > 0);
-		this.$.groupedList.setStripSize(this._rows.length);
-		this.$.groupedList.render();
+		this.$.synergyBox.setShowing(order.length > 0);
+		this.$.groups.render();
 	},
-	groupedGetItem: function(inSender, inIndex) {
-		if (!this._rows || inIndex < 0 || inIndex >= this._rows.length) { return false; }
-		var r = this._rows[inIndex];
-		if (r.header !== undefined) {
-			this.$.catHeader.setContent(r.header);
-			this.$.catHeader.setShowing(true);
-			this.$.Account.setShowing(false);
-			return true;
-		}
-		this.$.catHeader.setShowing(false);
-		this.$.Account.setShowing(true);
-		this.fillRow(this.$.accountIcon, this.$.accountName, this.$.accountCategory, this.$.emailAddress, this.$.errorIcon, r.account);
-		return true;
-	},
-	groupedTapped: function(inSender, inEvent) {
-		var r = this._rows && this._rows[inEvent.rowIndex];
-		if (!r || r.header !== undefined) { return; }
-		this._select(r.account);
+	onGroupAccountSelected: function(inSender, inEvent) {
+		this._select(inEvent.account);
 	},
 
 	// --- flat rendering (SIM) ---
@@ -160,7 +166,6 @@ enyo.kind({
 		this.doAccountsList_AccountSelected({account: account});
 	},
 
-	// Fill a row's controls from an account.
 	fillRow: function(icon, name, cat, email, err, a) {
 		if (a.icon && a.icon.loc_32x32) { icon.setSrc(a.icon.loc_32x32); }
 		name.setContent(a.alias || a.loc_name);
@@ -218,7 +223,7 @@ enyo.kind({
 			this.accountStatus[accountId].currentError = this.accountStatus[accountId].error;
 			this.accountStatus[accountId].error = false;
 		}
-		if (needsRedraw) { if (this.grouped) { this.$.groupedList.render(); } else { this.$.list.render(); } }
+		if (needsRedraw) { if (this.grouped) { this.renderGrouped(); } else { this.$.list.render(); } }
 		this.doAccountsList_Ready();
 	}
 });
