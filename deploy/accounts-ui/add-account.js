@@ -14,23 +14,27 @@
 // accounts-list.js so styling (row height, dividers, rounding) matches exactly.
 enyo.kind({
 	name: "Accounts.addAccountGroup",
-	kind: "RowGroup",
-	className: "accounts-group",
-	published: { items: [], ownerView: null },
+	kind: "enyo.Control",
+	style: "margin-top:15px;",
+	published: { items: [], ownerView: null, caption: "" },
 	events: { onGroupItem_Selected: "" },
 	components: [
-		{name: "list", kind: "VirtualRepeater", className: "accounts-rowgroup-item", onSetupRow: "setupRow", onclick: "rowTapped", components: [
-			{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "center", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", components: [
-				{kind: "Image", name: "icon", className: "icon-image"},
-				{kind: "HFlexBox", style: "width:420px", align: "center", components: [
-					{kind: "VFlexBox", align: "start", components: [
-						{name: "nm"},
-						{name: "sub", style: "font-size:11px; color:#8a8a8a; margin-top:1px;"}
+		{name: "grp", kind: "RowGroup", className: "accounts-group", components: [
+			{name: "list", kind: "VirtualRepeater", className: "accounts-rowgroup-item", onSetupRow: "setupRow", onclick: "rowTapped", components: [
+				{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "center", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", components: [
+					{kind: "Image", name: "icon", className: "icon-image"},
+					{kind: "HFlexBox", style: "width:420px", align: "center", components: [
+						{kind: "VFlexBox", align: "start", components: [
+							{name: "nm"},
+							{name: "sub", style: "font-size:11px; color:#8a8a8a; margin-top:1px;"}
+						]}
 					]}
 				]}
 			]}
 		]}
 	],
+	create: function() { this.inherited(arguments); this.captionChanged(); },
+	captionChanged: function() { try { if (this.$.grp && this.$.grp.setCaption) { this.$.grp.setCaption(this.caption); } } catch (e) {} },
 	setItems: function(v) {
 		this.items = v || [];
 		this.$.list.setStripSize(this.items.length);
