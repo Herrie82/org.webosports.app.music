@@ -52,7 +52,7 @@ enyo.kind({
 			{name: "libConnectors", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "Connectors", className: "connectors", onclick: "onClickLibrary", components: [
 				// Inline style (not CSS) so it bypasses webOS's sticky CSS cache; the
 				// url is relative to index.html (app root), so no ../ prefix.
-				{className: "icon", style: "width:32px;height:32px;margin-right:8px;background:url(images/bg_nav_connectors.png) no-repeat 50% 50%;-webkit-background-size:32px 32px;background-size:32px 32px;"},
+				{className: "icon", style: "width:26px;height:26px;margin-right:10px;background:url(images/bg_nav_connectors.png) no-repeat 50% 50%;-webkit-background-size:26px 26px;background-size:26px 26px;"},
 				{content: $L("Connectors"), className: "name", flex:1}
 			]},
 			{name: "libAutoList", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "AutoList", className: "autolist", onclick: "onClickLibrary", components: [
