@@ -91,6 +91,7 @@ func main() {
 	td := newTidalDL()
 	dz := newDeezerDL()
 	dzDL = dz
+	tdDL = td
 	registerDownloader(qz)
 	registerDownloader(td)
 	registerDownloader(dz)
@@ -117,9 +118,10 @@ func main() {
 	mux.HandleFunc("/ytauth/start", withCORS(handleYtAuthStart))   // begin device-code login
 	mux.HandleFunc("/ytauth/poll", withCORS(handleYtAuthPoll))     // poll for authorisation
 	mux.HandleFunc("/ytauth/status", withCORS(handleYtAuthStatus)) // is YouTube signed in?
-	mux.HandleFunc("/tidalauth/start", withCORS(handleTidalAuthStart))   // Tidal device-code login
-	mux.HandleFunc("/tidalauth/poll", withCORS(handleTidalAuthPoll))     // poll for authorisation
-	mux.HandleFunc("/tidalauth/status", withCORS(handleTidalAuthStatus)) // is Tidal signed in?
+	mux.HandleFunc("/tidalauth/start", withCORS(handleTidalAuthStart))       // Tidal PKCE: get authorize URL
+	mux.HandleFunc("/tidalauth/exchange", withCORS(handleTidalAuthExchange)) // exchange redirect ?code
+	mux.HandleFunc("/tidalauth/status", withCORS(handleTidalAuthStatus))     // is Tidal signed in?
+	mux.HandleFunc("/tidalstream", handleTidalStream)                        // DASH/BTS reassembly proxy (gst/curl)
 	mux.HandleFunc("/qobuzauth/login", withCORS(handleQobuzAuthLogin))   // Qobuz email+password
 	mux.HandleFunc("/dzauth/save", withCORS(handleDeezerAuthSave))       // Deezer ARL cookie (fallback)
 	mux.HandleFunc("/dzauth/login", withCORS(handleDeezerAuthLogin))     // Deezer email+password -> ARL

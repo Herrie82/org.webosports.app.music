@@ -14,6 +14,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,8 +31,8 @@ import (
 const (
 	qobuzAuthFile  = "/media/internal/qobuz-auth"
 	deezerArlFile  = "/media/internal/deezer-arl"
-	tidalDeviceURL = "https://auth.tidal.com/v1/oauth2/device_authorization"
-	tidalScope     = "r_usr w_usr w_sub"
+	tidalAuthorize = "https://login.tidal.com/authorize"
+	tidalScope     = "r_usr w_usr"
 )
 
 // refreshFirstPartyServices rebuilds the Qobuz/Tidal/Deezer adapters from their
@@ -44,6 +47,7 @@ func refreshFirstPartyServices() {
 	providersMu.Lock()
 	defer providersMu.Unlock()
 	dzDL = dz
+	tdDL = td // handle for the /tidalstream proxy
 	// The Deezer provider is always present (public search + 30s preview); just
 	// rebind it to the fresh adapter so full-track streaming picks up a new ARL.
 	providers["deezer"] = &deezerProvider{dl: dz}
@@ -170,96 +174,69 @@ func handleDeezerAuthLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "username": name})
 }
 
-// --- Tidal: OAuth device-code flow (mirrors ytauth.go) -----------------------
+// --- Tidal: PKCE authorization-code flow (web player client) -----------------
+// The device-code flow yields a NON-streaming token (playbackinfo returns 4005); a
+// PKCE web-player token is stream-entitled. The validator opens the authorize URL in
+// a webview, captures the ?code= from the redirect to tidal.com/login/auth, and POSTs
+// it to /tidalauth/exchange.
 
 var (
-	tidalDeviceMu  sync.Mutex
-	tidalDevicePnd struct {
-		deviceCode string
-		interval   int
-	}
+	tidalPKCEMu       sync.Mutex
+	tidalPKCEVerifier string
 )
 
-func tidalStartDeviceAuth(ctx context.Context) (map[string]interface{}, error) {
+// tidalStartPKCE mints a PKCE verifier + challenge and returns the Tidal authorize URL.
+func tidalStartPKCE() string {
+	b := make([]byte, 48)
+	_, _ = rand.Read(b)
+	verifier := base64.RawURLEncoding.EncodeToString(b)
+	sum := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
+	tidalPKCEMu.Lock()
+	tidalPKCEVerifier = verifier
+	tidalPKCEMu.Unlock()
+	v := url.Values{}
+	v.Set("response_type", "code")
+	v.Set("redirect_uri", tidalRedirectURI)
+	v.Set("client_id", tidalClientID)
+	v.Set("appMode", "WEB")
+	v.Set("language", "en")
+	v.Set("code_challenge", challenge)
+	v.Set("code_challenge_method", "S256")
+	v.Set("scope", tidalScope)
+	return tidalAuthorize + "?" + v.Encode()
+}
+
+// tidalExchangePKCE swaps the redirect ?code for a token, persists it, registers the
+// provider, and returns the Tidal username.
+func tidalExchangePKCE(ctx context.Context, code string) (string, error) {
+	tidalPKCEMu.Lock()
+	ver := tidalPKCEVerifier
+	tidalPKCEMu.Unlock()
+	if ver == "" {
+		return "", fmt.Errorf("no pending Tidal login; start again")
+	}
 	form := url.Values{}
 	form.Set("client_id", tidalClientID)
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", code)
+	form.Set("redirect_uri", tidalRedirectURI)
 	form.Set("scope", tidalScope)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tidalDeviceURL, strings.NewReader(form.Encode()))
+	form.Set("code_verifier", ver)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tidalAuthTokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("tidal device auth http %d: %s", resp.StatusCode, tidalTrunc(string(b), 200))
+		return "", fmt.Errorf("tidal token exchange http %d: %s", resp.StatusCode, tidalTrunc(string(b), 200))
 	}
-	var rr struct {
-		DeviceCode              string `json:"deviceCode"`
-		UserCode                string `json:"userCode"`
-		VerificationURI         string `json:"verificationUri"`
-		VerificationURIComplete string `json:"verificationUriComplete"`
-		ExpiresIn               int    `json:"expiresIn"`
-		Interval                int    `json:"interval"`
-	}
-	if err := json.Unmarshal(b, &rr); err != nil {
-		return nil, err
-	}
-	if rr.DeviceCode == "" {
-		return nil, fmt.Errorf("tidal: no deviceCode in response")
-	}
-	iv := rr.Interval
-	if iv <= 0 {
-		iv = 2
-	}
-	tidalDeviceMu.Lock()
-	tidalDevicePnd.deviceCode = rr.DeviceCode
-	tidalDevicePnd.interval = iv
-	tidalDeviceMu.Unlock()
-	// verificationUriComplete already embeds the code (e.g. "link.tidal.com/ABCDE").
-	full := rr.VerificationURIComplete
-	if full == "" {
-		full = rr.VerificationURI
-	}
-	return map[string]interface{}{
-		"user_code":                 rr.UserCode,
-		"verification_url":          rr.VerificationURI,
-		"verification_url_complete": full,
-		"interval":                  iv,
-		"expires_in":                rr.ExpiresIn,
-	}, nil
-}
-
-// tidalPollDeviceAuth polls once; returns "pending" | "ok" | "error" plus the Tidal
-// username on success (so the account is labelled with the real user, not "Tidal").
-func tidalPollDeviceAuth(ctx context.Context) (string, string, error) {
-	tidalDeviceMu.Lock()
-	dc := tidalDevicePnd.deviceCode
-	tidalDeviceMu.Unlock()
-	if dc == "" {
-		return "error", "", fmt.Errorf("no pending auth; call /tidalauth/start first")
-	}
-	form := url.Values{}
-	form.Set("client_id", tidalClientID)
-	form.Set("client_secret", tidalClientSecret)
-	form.Set("device_code", dc)
-	form.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
-	form.Set("scope", tidalScope)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tidalAuthTokenURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "pending", "", err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "pending", "", err
-	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(resp.Body)
 	var rr struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
@@ -269,65 +246,66 @@ func tidalPollDeviceAuth(ctx context.Context) (string, string, error) {
 			CountryCode string `json:"countryCode"`
 			UserID      int64  `json:"userId"`
 		} `json:"user"`
-		Error string `json:"error"`
 	}
-	_ = json.Unmarshal(b, &rr)
-	if rr.AccessToken != "" {
-		tok := tidalToken{
-			AccessToken:  rr.AccessToken,
-			RefreshToken: rr.RefreshToken,
-			TokenType:    rr.TokenType,
-			CountryCode:  rr.User.CountryCode,
-			UserID:       rr.User.UserID,
-		}
-		if rr.ExpiresIn > 0 {
-			tok.Expiry = time.Now().Add(time.Duration(rr.ExpiresIn) * time.Second).Format(time.RFC3339)
-		}
-		if tok.CountryCode == "" {
-			tok.CountryCode = "US"
-		}
-		bb, err := json.MarshalIndent(tok, "", "  ")
-		if err != nil {
-			return "error", "", err
-		}
-		if err := os.WriteFile(tidalTokenFile, bb, 0600); err != nil {
-			return "error", "", err
-		}
-		tidalDeviceMu.Lock()
-		tidalDevicePnd.deviceCode = ""
-		tidalDeviceMu.Unlock()
-		refreshFirstPartyServices()
-		uname := newTidalDL().fetchUsername(ctx)
-		return "ok", uname, nil
+	if err := json.Unmarshal(b, &rr); err != nil {
+		return "", err
 	}
-	// Tidal returns HTTP 400 {"error":"authorization_pending"} while the user hasn't
-	// approved yet (and "slow_down" if we poll too fast).
-	if strings.Contains(rr.Error, "authorization_pending") || strings.Contains(rr.Error, "slow_down") {
-		return "pending", "", nil
+	if rr.AccessToken == "" {
+		return "", fmt.Errorf("tidal: no access_token in exchange response")
 	}
-	if rr.Error == "" {
-		return "pending", "", nil // treat an unexpected empty body as still-pending
+	tok := tidalToken{
+		AccessToken:  rr.AccessToken,
+		RefreshToken: rr.RefreshToken,
+		TokenType:    rr.TokenType,
+		CountryCode:  rr.User.CountryCode,
+		UserID:       rr.User.UserID,
 	}
-	return "error", "", fmt.Errorf("%s", rr.Error)
+	if rr.ExpiresIn > 0 {
+		tok.Expiry = time.Now().Add(time.Duration(rr.ExpiresIn) * time.Second).Format(time.RFC3339)
+	}
+	if tok.CountryCode == "" {
+		tok.CountryCode = "US"
+	}
+	bb, err := json.MarshalIndent(tok, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(tidalTokenFile, bb, 0600); err != nil {
+		return "", err
+	}
+	tidalPKCEMu.Lock()
+	tidalPKCEVerifier = ""
+	tidalPKCEMu.Unlock()
+	refreshFirstPartyServices()
+	return newTidalDL().fetchUsername(ctx), nil
 }
 
 func handleTidalAuthStart(w http.ResponseWriter, r *http.Request) {
-	out, err := tidalStartDeviceAuth(r.Context())
+	writeJSON(w, map[string]interface{}{"authorize_url": tidalStartPKCE()})
+}
+
+// POST /tidalauth/exchange {code}
+func handleTidalAuthExchange(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		httpErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	code := strings.TrimSpace(body.Code)
+	if code == "" {
+		httpErr(w, http.StatusBadRequest, "code required")
+		return
+	}
+	uname, err := tidalExchangePKCE(r.Context(), code)
 	if err != nil {
 		httpErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, out)
-}
-
-func handleTidalAuthPoll(w http.ResponseWriter, r *http.Request) {
-	status, username, err := tidalPollDeviceAuth(r.Context())
-	out := map[string]interface{}{"status": status}
-	if username != "" {
-		out["username"] = username
-	}
-	if err != nil && status != "pending" {
-		out["error"] = err.Error()
+	out := map[string]interface{}{"ok": true}
+	if uname != "" {
+		out["username"] = uname
 	}
 	writeJSON(w, out)
 }

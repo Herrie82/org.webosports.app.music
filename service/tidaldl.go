@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,13 +25,15 @@ import (
 // device login (see report). The access token is refreshed against
 // auth.tidal.com on 401 and the new token persisted back to that file.
 //
-// client_id/secret: the tidalapi Automotive client. Streaming requires the versioned
-// endpoint (playbackinfopostpaywall/v4) — this client + /v4 is the combo tidalapi uses.
-// (The bare playbackinfopostpaywall gives 4005 "Asset is not ready" for every track; the
-// Fire TV client 7m7Ap0JC9j1cOM3n gives 4022 "client does not exist" on /v4.)
+// client_id: the TIDAL WEB PLAYER client (public, no secret), authenticated via the
+// PKCE authorization-code flow. This is the crucial detail: the device-code flow (any
+// client) yields a token that returns 401/4005 "Asset is not ready" on every track,
+// whereas a PKCE web token is stream-entitled and playbackinfo returns a real manifest.
+// LOSSLESS comes back as a DASH MPD of fMP4/FLAC segments (see streamSpec/parseTidalDash).
 const (
-	tidalClientID     = "zU4XHVVkc2tDPo4t"
-	tidalClientSecret = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4="
+	tidalClientID     = "49YxDN9a2aFV6RTG"
+	tidalClientSecret = "" // web PKCE client is public
+	tidalRedirectURI  = "https://tidal.com/login/auth"
 	tidalTokenFile    = "/media/internal/tidal-token"
 	tidalAPIBase      = "https://api.tidal.com/v1"
 	tidalAuthTokenURL = "https://auth.tidal.com/v1/oauth2/token"
@@ -118,10 +124,12 @@ func (t *tidalDL) refresh(ctx context.Context) error {
 	}
 	form := url.Values{}
 	form.Set("client_id", tidalClientID)
-	form.Set("client_secret", tidalClientSecret)
+	if tidalClientSecret != "" {
+		form.Set("client_secret", tidalClientSecret)
+	}
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", rt)
-	form.Set("scope", "r_usr w_usr w_sub")
+	form.Set("scope", "r_usr w_usr")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tidalAuthTokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
@@ -276,6 +284,96 @@ func (t *tidalDL) FileURL(ctx context.Context, trackID string) (losslessFile, er
 	// TODO: parse the MPD and reassemble segments. For now we request LOSSLESS
 	// (single-URL BTS) above; surface a clear error if a DASH manifest appears.
 	return losslessFile{}, fmt.Errorf("tidal: got DASH/hi-res manifest (%s); segment reassembly not implemented — LOSSLESS expected", pb.ManifestMimeType)
+}
+
+// tidalStreamSpec is the ordered list of URLs whose bodies, concatenated, form the
+// track's playable audio: a DASH init segment followed by its numbered media segments
+// (fMP4/FLAC), or a single BTS FLAC URL.
+type tidalStreamSpec struct {
+	URLs        []string
+	ContentType string
+	// MP4FLAC true = URLs are DASH fMP4/FLAC segments (init first) that must be
+	// unwrapped into a native FLAC stream (gst-0.10 has no FLAC-in-MP4 decoder).
+	MP4FLAC bool
+}
+
+var (
+	reTidalInit  = regexp.MustCompile(`initialization="([^"]+)"`)
+	reTidalMedia = regexp.MustCompile(`media="([^"]+)"`)
+	reTidalStart = regexp.MustCompile(`startNumber="(\d+)"`)
+	reTidalSegS  = regexp.MustCompile(`<S\b[^>]*/>`)
+	reTidalSegR  = regexp.MustCompile(`r="(\d+)"`)
+)
+
+// streamSpec resolves a LOSSLESS playback manifest into the ordered segment URLs.
+func (t *tidalDL) streamSpec(ctx context.Context, trackID string) (*tidalStreamSpec, error) {
+	cc := t.countryCode()
+	u := fmt.Sprintf("%s/tracks/%s/playbackinfopostpaywall?audioquality=LOSSLESS&playbackmode=STREAM&assetpresentation=FULL&countryCode=%s",
+		tidalAPIBase, url.PathEscape(trackID), url.QueryEscape(cc))
+	body, err := t.authGet(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	var pb struct {
+		ManifestMimeType string `json:"manifestMimeType"`
+		Manifest         string `json:"manifest"` // base64
+	}
+	if err := json.Unmarshal(body, &pb); err != nil {
+		return nil, err
+	}
+	raw, err := base64.StdEncoding.DecodeString(pb.Manifest)
+	if err != nil {
+		return nil, fmt.Errorf("tidal: manifest base64: %v", err)
+	}
+	// BTS manifest (application/vnd.tidal.bts): JSON with a single-file urls[].
+	if strings.Contains(pb.ManifestMimeType, "bts") || (len(raw) > 0 && raw[0] == '{') {
+		var m struct {
+			URLs []string `json:"urls"`
+		}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return nil, err
+		}
+		if len(m.URLs) == 0 {
+			return nil, fmt.Errorf("tidal: no urls in BTS manifest")
+		}
+		return &tidalStreamSpec{URLs: m.URLs, ContentType: "audio/flac"}, nil
+	}
+	// DASH MPD: an init segment + numbered fMP4/FLAC media segments.
+	if strings.Contains(pb.ManifestMimeType, "dash") || bytes.Contains(raw, []byte("<MPD")) {
+		return parseTidalDash(string(raw))
+	}
+	return nil, fmt.Errorf("tidal: unsupported manifest %q", pb.ManifestMimeType)
+}
+
+func parseTidalDash(mpd string) (*tidalStreamSpec, error) {
+	mm := reTidalMedia.FindStringSubmatch(mpd)
+	if mm == nil {
+		return nil, fmt.Errorf("tidal: no media template in MPD")
+	}
+	media := html.UnescapeString(mm[1])
+	start := 1
+	if s := reTidalStart.FindStringSubmatch(mpd); s != nil {
+		start, _ = strconv.Atoi(s[1])
+	}
+	count := 0
+	for _, seg := range reTidalSegS.FindAllString(mpd, -1) {
+		rep := 0
+		if r := reTidalSegR.FindStringSubmatch(seg); r != nil {
+			rep, _ = strconv.Atoi(r[1])
+		}
+		count += 1 + rep
+	}
+	if count == 0 {
+		count = 1
+	}
+	urls := make([]string, 0, count+1)
+	if im := reTidalInit.FindStringSubmatch(mpd); im != nil {
+		urls = append(urls, html.UnescapeString(im[1]))
+	}
+	for i := 0; i < count; i++ {
+		urls = append(urls, strings.ReplaceAll(media, "$Number$", strconv.Itoa(start+i)))
+	}
+	return &tidalStreamSpec{URLs: urls, ContentType: "audio/flac", MP4FLAC: true}, nil
 }
 
 func tidalTrunc(s string, n int) string {
