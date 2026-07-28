@@ -1,12 +1,14 @@
 // Add an account.  Show the list of accounts the user is able to add, based on the account templates.
 //
 // CUSTOMISED (org.webosports.app.music accounts-UX plan, phases 1/2/4): the flat
-// template list grew huge (~40 Synergy connectors), so:
-//   #2 templates are GROUPED under category headers (Music, Email, Messaging & Chat,
-//      Cloud & Photos, Contacts & Calendar, Phone, Other) from their capabilityProviders.
-//   #1 each row shows a capability-derived SUBTITLE (e.g. "Music", "Email · Contacts").
-//   #4 a SEARCH box filters the list live (by name / subtitle / category).
-// Falls back to a flat, unfiltered list if anything goes wrong.
+// template list grew huge (~40 Synergy connectors). Rendered exactly like the
+// "SYNERGY ACCOUNTS" list on the main screen — one native RowGroup PER CATEGORY
+// (caption = category), rows are native Items (icon + name + capability subtitle):
+//   #2 grouped by category (Music, Email, Messaging & Chat, Cloud & Photos,
+//      Contacts & Calendar, Phone, Other) from each template's capabilityProviders.
+//   #1 per-connector subtitle (e.g. "Music", "Email · Contacts · Calendar").
+//   #4 a search box filters the list live (by name / subtitle / category).
+// Falls back to a single "OTHER" group if anything goes wrong.
 //
 // Kind:
 // {kind: "Accounts.addAccountView", name: "addAccount", onAddAccount_AccountSelected: "editAccount", onAddAccount_Cancel: "addCancel"}
@@ -43,7 +45,7 @@ enyo.kind({
 	],
 	otherLabel: $L("OTHER"),
 
-	// #1 friendly word per capability + the order they're listed (most identifying first), capped to 3.
+	// #1 friendly word per capability + the order listed (most identifying first), capped to 3.
 	capLabels: {
 		"Music": $L("Music"), "MAIL": $L("Email"), "MESSAGING": $L("Messaging"), "IM": $L("Messaging"),
 		"CONTACTS": $L("Contacts"), "REMOTECONTACTS": $L("Contacts"), "CALENDAR": $L("Calendar"),
@@ -60,22 +62,14 @@ enyo.kind({
 				{kind: "Control", content: AccountsUtil.PAGE_TITLE_ADD_ACCOUNT}
 		]},
 		{className:"accounts-header-shadow"},
-		// #4 search/filter box
-		{kind: "Control", className:"box-center", style:"padding:8px 10px 0 10px", components: [
-			{name: "search", kind: "Input", hint: $L("Search"), onkeyup: "searchKey", style:"width:100%; height:34px; font-size:15px;"}
-		]},
 		{kind: "Scroller", flex: 1, components: [
-			{kind:"Control", className:"box-center", style:"margin-top:12px", components: [
-				{name: "list", kind: "VirtualRepeater", onSetupRow: "listGetItem", onclick: "templateSelected", className:"accounts-btn-list", components: [
-					{name: "rowHeader", showing:false, style:"padding:16px 6px 4px 6px; font-size:13px; font-weight:bold; color:#7c7c7c; letter-spacing:0.04em;"},
-					{kind: "Button", name: "Account", allowDrag:true, layoutKind: "HFlexLayout", align:"center", className:"accounts-btn", components: [
-						{kind: "Image", name: "templateIcon", className:"icon-image"},
-						{kind: "VFlexBox", flex:1, align:"start", components: [
-							{name: "templateName"},
-							{name: "templateSubtitle", style:"font-size:11px; color:#8a8a8a; margin-top:1px;"}
-						]}
-					]}
+			{kind:"Control", className:"box-center", components: [
+				// #4 search box — same centered width as the groups
+				{kind: "Control", style:"padding:14px 2px 6px 2px;", components: [
+					{name: "search", kind: "Input", hint: $L("Search accounts"), onkeyup: "searchKey",
+						style:"width:100%; -webkit-box-sizing:border-box; box-sizing:border-box; height:38px; padding:0 12px; border:1px solid #b6b6b6; border-radius:9px; background:#fff; font-size:15px;"}
 				]},
+				{name: "groups"},		// native RowGroups built here
 				{name: "noResults", content: $L("No matching accounts"), showing:false, style:"text-align:center; color:#999; padding:24px;"}
 			]},
 		]},
@@ -86,28 +80,19 @@ enyo.kind({
 		{kind: "PalmService", service: "palm://com.palm.applicationManager/", method: "open", name: "openAppCatalog"}
 	],
 
-	// Show the list of available accounts, grouped into category sections.
 	showAvailableAccounts: function(templates, capability) {
 		this.templates = templates;
 		this.capability = capability || this.capability;
 		this._filter = "";
-		if (this.$.search && this.$.search.setValue) { try { this.$.search.setValue(""); } catch (e) {} }
+		try { if (this.$.search && this.$.search.setValue) { this.$.search.setValue(""); } } catch (e) {}
 		this.rebuild();
 	},
 
 	// #4 search
-	searchKey: function(inSender, inEvent) {
+	searchKey: function() {
 		var v = (this.$.search && this.$.search.getValue) ? this.$.search.getValue() : "";
 		this._filter = (v || "").toLowerCase();
 		this.rebuild();
-	},
-
-	rebuild: function() {
-		this.rows = this.buildRows(this.templates || []);
-		var empty = true;
-		for (var i = 0; i < this.rows.length; i++) { if (this.rows[i].template) { empty = false; break; } }
-		if (this.$.noResults) { this.$.noResults.setShowing(empty && !!this._filter); }
-		this.$.list.render();
 	},
 
 	// Collect the capability ids a template provides.
@@ -128,7 +113,7 @@ enyo.kind({
 		return set;
 	},
 
-	// #2 category label for a template (first matching capability in categoryOrder).
+	// #2 category label (first matching capability).
 	categoryOf: function(t) {
 		var caps = this.capsOf(t);
 		for (var i = 0; i < this.categoryOrder.length; i++) {
@@ -137,7 +122,7 @@ enyo.kind({
 		return this.otherLabel;
 	},
 
-	// #1 subtitle for a template.
+	// #1 subtitle.
 	subtitleFor: function(t) {
 		var caps = this.capsOf(t), seen = {}, parts = [];
 		for (var i = 0; i < this.subtitleOrder.length && parts.length < 3; i++) {
@@ -147,75 +132,91 @@ enyo.kind({
 		return parts.join(" · ");
 	},
 
-	// True if a template passes the current search filter.
 	matchesFilter: function(t) {
 		if (!this._filter) { return true; }
 		var hay = ((t.loc_name || "") + " " + this.subtitleFor(t) + " " + this.categoryOf(t)).toLowerCase();
 		return hay.indexOf(this._filter) >= 0;
 	},
 
-	// Build rows: {header} | {template, idx} | {findMore}, grouped by category, filtered by search.
-	buildRows: function(templates) {
-		var rows = [];
+	// Group filtered templates -> [{label, items:[{template,idx}]}] in categoryOrder, Other last.
+	groupTemplates: function() {
+		var byCat = {}, ts = this.templates || [];
+		for (var i = 0; i < ts.length; i++) {
+			if (!this.matchesFilter(ts[i])) { continue; }
+			var cat = this.categoryOf(ts[i]);
+			if (!byCat[cat]) { byCat[cat] = []; }
+			byCat[cat].push({template: ts[i], idx: i});
+		}
+		var out = [], used = {};
+		for (var k = 0; k < this.categoryOrder.length; k++) {
+			var lbl = this.categoryOrder[k].label;
+			if (byCat[lbl] && !used[lbl]) { out.push({label: lbl, items: byCat[lbl]}); used[lbl] = true; }
+		}
+		if (byCat[this.otherLabel]) { out.push({label: this.otherLabel, items: byCat[this.otherLabel]}); }
+		return out;
+	},
+
+	// Build native RowGroups (one per category) of native Items.
+	rebuild: function() {
+		// tear down existing groups
+		var kids = this.$.groups.children.slice(0);
+		for (var d = 0; d < kids.length; d++) { kids[d].destroy(); }
+
+		var any = false;
 		try {
-			var byCat = {};
-			for (var i = 0; i < templates.length; i++) {
-				if (!this.matchesFilter(templates[i])) { continue; }
-				var cat = this.categoryOf(templates[i]);
-				if (!byCat[cat]) { byCat[cat] = []; }
-				byCat[cat].push({template: templates[i], idx: i});
-			}
-			var order = [], used = {};
-			for (var k = 0; k < this.categoryOrder.length; k++) {
-				var lbl = this.categoryOrder[k].label;
-				if (byCat[lbl] && !used[lbl]) { order.push(lbl); used[lbl] = true; }
-			}
-			if (byCat[this.otherLabel]) { order.push(this.otherLabel); }
-			for (var o = 0; o < order.length; o++) {
-				rows.push({header: order[o]});
-				var items = byCat[order[o]];
-				for (var m = 0; m < items.length; m++) { rows.push(items[m]); }
+			var cats = this.groupTemplates();
+			for (var c = 0; c < cats.length; c++) {
+				var items = cats[c].items;
+				if (!items.length) { continue; }
+				any = true;
+				var group = this.$.groups.createComponent(
+					{kind: "RowGroup", className: "accounts-group", caption: cats[c].label}, {owner: this});
+				for (var k = 0; k < items.length; k++) {
+					this._makeItem(group, items[k].template, this._rowClass(k, items.length));
+				}
 			}
 		} catch (e) {
-			rows = [];
-			for (var f = 0; f < templates.length; f++) { rows.push({template: templates[f], idx: f}); }
+			// defensive: one flat group
+			var g = this.$.groups.createComponent({kind: "RowGroup", className: "accounts-group"}, {owner: this});
+			var all = this.templates || [];
+			for (var f = 0; f < all.length; f++) { this._makeItem(g, all[f], this._rowClass(f, all.length)); any = true; }
 		}
-		// "Find more" only on the unfiltered full list (and not for the Phone app)
-		if (!this._filter && this.capability !== "PHONE") { rows.push({findMore: true}); }
-		return rows;
+
+		// "Find more" (only on the unfiltered full list, not the Phone app)
+		if (!this._filter && this.capability !== "PHONE") {
+			var fmg = this.$.groups.createComponent({kind: "RowGroup", className: "accounts-group"}, {owner: this});
+			fmg.createComponent({kind: "Item", findMore: true, layoutKind: "HFlexLayout", align: "center", tapHighlight: true,
+				className: "accounts-list-item enyo-text-ellipsis enyo-single", onclick: "itemTapped", components: [
+					{kind: "Image", className: "icon-image", src: AccountsUtil.libPath + "images/appcatalog-32x32.png"},
+					{content: AccountsUtil.TEXT_FIND_MORE}
+				]}, {owner: this});
+		}
+
+		if (this.$.noResults) { this.$.noResults.setShowing(!any && !!this._filter); }
+		this.$.groups.render();
 	},
 
-	// Render a row (header, template button, or "Find more").
-	listGetItem: function(inSender, inIndex) {
-		if (!this.rows || inIndex < 0 || inIndex >= this.rows.length) { return false; }
-		var row = this.rows[inIndex];
-		if (row.header !== undefined) {
-			this.$.rowHeader.setContent(row.header);
-			this.$.rowHeader.setShowing(true);
-			this.$.Account.setShowing(false);
-			return true;
-		}
-		this.$.rowHeader.setShowing(false);
-		this.$.Account.setShowing(true);
-		if (row.findMore) {
-			this.$.templateIcon.setSrc(AccountsUtil.libPath + "images/appcatalog-32x32.png");
-			this.$.templateName.setContent(AccountsUtil.TEXT_FIND_MORE);
-			this.$.templateSubtitle.setContent("");
-			return true;
-		}
-		var t = row.template;
-		if (t.icon) { this.$.templateIcon.setSrc(t.icon.loc_32x32); }
-		this.$.templateName.setContent(t.loc_name);
-		this.$.templateSubtitle.setContent(this.subtitleFor(t));
-		return true;
+	_rowClass: function(i, n) {
+		var base = "accounts-list-item enyo-text-ellipsis ";
+		if (n === 1) { return base + "enyo-single"; }
+		if (i === 0) { return base + "enyo-first"; }
+		if (i === n - 1) { return base + "enyo-last"; }
+		return base + "enyo-middle";
 	},
 
-	// User tapped a row.
-	templateSelected: function(inSender, inEvent) {
-		if (!inEvent || inEvent.rowIndex === undefined || !this.rows) { return; }
-		var row = this.rows[inEvent.rowIndex];
-		if (!row || row.header !== undefined) { return; } // headers aren't selectable
-		if (row.findMore) {
+	_makeItem: function(group, t, cls) {
+		group.createComponent({kind: "Item", template: t, layoutKind: "HFlexLayout", align: "center", tapHighlight: true,
+			className: cls, onclick: "itemTapped", components: [
+				{kind: "Image", className: "icon-image", src: (t.icon && t.icon.loc_32x32) || ""},
+				{kind: "VFlexBox", flex: 1, align: "start", components: [
+					{content: t.loc_name || ""},
+					{content: this.subtitleFor(t), style:"font-size:11px; color:#8a8a8a; margin-top:1px;"}
+				]}
+			]}, {owner: this});
+	},
+
+	itemTapped: function(inSender) {
+		if (inSender.findMore) {
 			this.$.openAppCatalog.call({"id": "com.palm.app.enyo-findapps",	"params": {"common": {"sceneType": "search", "params": {
 				"type": "connector",
 				"connectorInfo": {
@@ -225,6 +226,6 @@ enyo.kind({
 				}}}}});
 			return;
 		}
-		this.doAddAccount_AccountSelected(row.template);
+		if (inSender.template) { this.doAddAccount_AccountSelected(inSender.template); }
 	},
 });
