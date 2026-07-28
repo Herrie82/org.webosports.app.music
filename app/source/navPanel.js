@@ -47,8 +47,8 @@ enyo.kind({
 				{content: $L("Genres"), className: "name", flex:1}
 				//{content: $L("Genres"), className: "name"}
 			]},
-			// Spotify now lives as a tab inside Connectors, so it no longer needs its
-			// own left-menu entry (the pane + kindSpotifyView remain for account sync).
+			// Spotify lives as a tab inside Connectors (login is via the Accounts app,
+			// com.herrie.musicauth), so it has no separate left-menu entry or view.
 			{name: "libConnectors", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "Connectors", className: "connectors", onclick: "onClickLibrary", components: [
 				// Inline style (not CSS) so it bypasses webOS's sticky CSS cache; the
 				// url is relative to index.html (app root), so no ../ prefix.

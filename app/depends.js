@@ -30,13 +30,12 @@ enyo.depends(
 	
 	"source/playerControl.js",
 
-	"source/spotifyView.js",
 	"source/connectorView.js",
+	"source/connectorView.css",
 	"source/autoListView.js",
 	"source/autoListView.css",
 	"source/flyListView.js",
 	"source/flyListView.css",
-	"source/spotifyView.css",
 	
 	"controls/searchinput.js",
 	"controls/alphapicker.js",

@@ -67,9 +67,6 @@ enyo.kind({
 									{name: "listViewGenreDetail", kind: "kindListViewGenreDetail", flex: 1, showing: true, onRequestMedia: "onRequestMedia_ListView", onRequestCurrTrack: "onRequestCurrTrackInfo", onSetPlaybackList: "onSetPlaybackList", onAddToPlaylist: "onAddToPlaylist", onItemDrag: "onItemDrag", onItemShowAvatar: "onItemShowAvatar", onItemShowAvatarIcon: "onItemShowAvatarIcon"}
 								]}
 							]},
-							{name: "viewListViewSpotify", flex: 1, components: [
-								{name: "listViewSpotify", kind: "kindSpotifyView", flex: 1, onSetPlaybackList: "onSetPlaybackList"}
-							]},
 							{name: "viewListViewConnectors", flex: 1, components: [
 								{name: "listViewConnectors", kind: "kindConnectorView", flex: 1, onSetPlaybackList: "onSetPlaybackList"}
 							]},
@@ -184,8 +181,6 @@ enyo.kind({
 	onAccountSynced: function(inSender, ok, accountId)
 	{
 		this.log("app: account sync " + (ok ? "ok" : "skipped/failed") + " (account " + accountId + ")");
-		// Refresh the Spotify view's auth state now that the backend has a session.
-		try { if (this.$.viewListViewSpotify && this.$.viewListViewSpotify.checkAuth) { this.$.viewListViewSpotify.checkAuth(); } } catch (e) {}
 	},
 
 	rendered: function()

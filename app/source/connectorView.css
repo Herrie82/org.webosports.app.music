@@ -1,0 +1,113 @@
+/* ---- Connector tab bar --------------------------------------------------
+ * Up to eight+ music services share the panel width (~700px on the TouchPad),
+ * so the framework IconButton defaults overflow and clip the last tab:
+ *   - 18px caption, 48px logos shown in a 32px icon box,
+ *   - border-width:0 16px of segment-chrome (border-image) = 32px wasted PER tab.
+ * Shrink the icon/caption, drop the border-image chrome, and lay the tabs out
+ * as an equal-width flex row so every connector fits edge-to-edge.
+ * Scoped to .connector-tabs so no other RadioGroup/TabGroup is affected.
+ * ------------------------------------------------------------------------ */
+.connector-tabs {
+	display: -webkit-box;
+	-webkit-box-orient: horizontal;
+	width: 100%;
+	-webkit-box-sizing: border-box;
+	white-space: nowrap;
+}
+.connector-tabs .enyo-tabbutton {
+	-webkit-box-flex: 1;
+	-webkit-box-sizing: border-box;
+	width: 1%;              /* tiny basis; box-flex splits the row equally */
+	min-width: 0;
+	margin: 0;
+	padding: 5px 1px 6px 1px;
+	font-size: 11px;
+	color: #333;
+	background: transparent;
+	overflow: hidden;
+	/* Kill the framework's blue-gradient segment chrome (a -webkit-border-image on
+	 * .enyo-tabbutton.enyo-{first,middle,last}.enyo-button-depressed, specificity
+	 * 0,3,0) in EVERY state/position — !important so it can't bleed back onto the
+	 * selected tab and make one connector look different from the rest. */
+	border: 0 !important;
+	-webkit-border-image: none !important;
+	border-right: 1px solid #cfcfcf !important;
+}
+.connector-tabs .enyo-tabbutton.enyo-last {
+	border-right: 0 !important;
+}
+.connector-tabs .enyo-button-icon {
+	display: block;
+	width: 26px;
+	height: 26px;
+	background-size: 26px 26px;      /* scale the 48px logo down cleanly */
+	background-position: center center;
+	margin: 0 auto 2px auto;         /* centre, small gap above the caption */
+}
+.connector-tabs .enyo-button-icon-text {
+	display: block;
+	font-size: 11px;
+	line-height: 12px;
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+/* Our logos are single images, not two-state sprites, so cancel the framework's
+ * "down" sprite-shift that would push the logo off the top of the icon box. */
+.connector-tabs .enyo-button-down .enyo-button-icon,
+.connector-tabs .enyo-button-depressed .enyo-button-icon {
+	background-position: center center;
+}
+/* Selected connector: the native webOS blue gradient fill with white caption.
+ * We paint it ourselves (instead of the framework's border-image chrome, which
+ * we removed because it rendered inconsistently across tab positions) so every
+ * selected connector looks identical. */
+.connector-tabs .enyo-tabbutton.enyo-button-depressed,
+.connector-tabs .enyo-tabbutton.enyo-button-down,
+.connector-tabs .enyo-tabbutton.enyo-last.enyo-button-depressed,
+.connector-tabs .enyo-tabbutton.enyo-last.enyo-button-down,
+.connector-tabs .enyo-tabbutton.enyo-single.enyo-button-depressed,
+.connector-tabs .enyo-tabbutton.enyo-single.enyo-button-down,
+.connector-tabs .enyo-tabbutton:last-child.enyo-button-depressed {
+	/* Exact webOS tab-selection blue, sampled from the framework's radiobutton.png
+	 * (the same asset Messaging's tab bar uses): dark at the top, lighter at the
+	 * bottom. Reproduced as a background gradient so it works in our compact,
+	 * border-image-free layout while matching Messaging pixel-for-pixel. */
+	background-color: #4f90c0 !important;   /* mid-blue solid fallback */
+	background-image: -webkit-gradient(linear, left top, left bottom, from(#326ea6), to(#6fa8cf)) !important;
+	color: #ffffff !important;
+}
+.connector-tabs .enyo-tabbutton.enyo-button-depressed .enyo-button-icon-text,
+.connector-tabs .enyo-tabbutton.enyo-button-down .enyo-button-icon-text {
+	color: #ffffff !important;
+}
+
+/* Shared list/row styles (formerly spotifyView.css; used by the generic connector
+   view — Spotify is just one provider tab now). Generic streaming class names (formerly spotify-*), for
+   compatibility with connectorView.js markup. */
+/* Spotify results matched to the LEFT NAV list (css/music.css .navigation):
+   grey #e5e5e5 background, #c3c3c3 separators, ~52px rows, 18px title. */
+.streaming-view { height: 100%; background: #e5e5e5; }
+
+.streaming-authlabel { font-size: 13px; color: #a33333; padding-right: 10px; }
+.streaming-loginrow { padding: 16px; }
+.streaming-hint, .streaming-status { color: #666; font-size: 13px; padding: 4px 16px; }
+
+/* search box: white field, clear border, medium (not too dark) text */
+.streaming-searchrow { padding: 10px 12px; }
+.streaming-searchrow .enyo-input { margin-right: 8px; background: #fff; border: 1px solid #b0b0b0; border-radius: 4px; padding: 6px 8px; color: #555; }
+
+/* result rows — same grey + separators + height as the nav */
+.streaming-results { padding: 0; background: #e5e5e5 !important; }
+.streaming-row { padding: 6px 8px; background: #e5e5e5 !important; border-bottom: 1px solid #c3c3c3 !important; }
+.streaming-row.active { background: -webkit-gradient(linear, 0% 0%, 0% 100%, from(rgba(218,235,251,0.6)), to(rgba(197,224,249,0.6))); }
+.streaming-art { width: 40px; height: 40px; margin: 0 10px 0 0; background: #ccc; }
+.streaming-meta { overflow: hidden; }
+.streaming-row-title { color: #1a1a1a; font-size: 18px; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.streaming-row-sub { color: #888; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* duration: right-aligned, lined up with the Search button */
+.streaming-row-time { color: #999; font-size: 13px; padding: 0 6px 0 12px; min-width: 40px; text-align: right; }
+
+/* nav entry icon */
+.navigation .spotify .icon { background: #1db954; border-radius: 3px; }

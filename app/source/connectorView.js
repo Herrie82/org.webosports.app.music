@@ -15,7 +15,7 @@
 enyo.kind({
 	name: "kindConnectorView",
 	kind: "VFlexBox",
-	className: "spotify-view",
+	className: "streaming-view",
 	published: { backend: "http://127.0.0.1:8730" },
 	events: { onSetPlaybackList: "" },
 
@@ -31,19 +31,19 @@ enyo.kind({
 			{ kind: "Control", className: "list-header-title-layout", layoutKind: "HLayout", components: [
 				{ content: $L("Connectors"), className: "title enyo-text-ellipsis", flex: 1 }
 			]},
-			{ name: "authLabel", content: "", className: "spotify-authlabel" }
+			{ name: "authLabel", content: "", className: "streaming-authlabel" }
 		]},
 		// provider tabs — a native TabGroup (segmented bar, like Messaging), one tab
 		// per connector with its logo + name. Built from /providers in buildTabs().
 		{ name: "tabs", kind: "TabGroup", onChange: "onTabChange", className: "connector-tabs", pack: "center",
 		  style: "border-bottom:1px solid #c3c3c3; background:#ededed;" },
-		{ name: "searchRow", className: "spotify-searchrow", layoutKind: "HFlexLayout", align: "center", style: "padding:10px 12px 46px 12px; border-bottom:1px solid #c3c3c3; position:relative;", components: [
+		{ name: "searchRow", className: "streaming-searchrow", layoutKind: "HFlexLayout", align: "center", style: "padding:10px 12px 46px 12px; border-bottom:1px solid #c3c3c3; position:relative;", components: [
 			{ name: "search", kind: "Input", flex: 1, hint: $L("Search…"), onkeyup: "searchKey", style: "height:40px; font-size:16px; padding-right:40px;" },
 			{ name: "btnSearch", kind: "Image", src: "images/empty-search.png", onclick: "doSearch", style: "position:absolute; right:22px; top:16px; width:28px; height:28px;" }
 		]},
-		{ name: "status", className: "spotify-status", content: "" },
+		{ name: "status", className: "streaming-status", content: "" },
 		{ name: "scroller", kind: "Scroller", flex: 1, components: [
-			{ name: "resultList", className: "spotify-results" }
+			{ name: "resultList", className: "streaming-results" }
 		]}
 	],
 
@@ -159,14 +159,15 @@ enyo.kind({
 		enyo.forEach(tracks, function (t, i) {
 			this.$.resultList.createComponent({
 				kind: "Item", index: i, layoutKind: "HFlexLayout", align: "center",
-				style: "background:#e5e5e5; border-bottom:1px solid #c3c3c3; padding:0 12px; height:54px; -webkit-box-sizing:border-box;", className: "spotify-row", tapHighlight: true, tapHighlightClassName: "active", onclick: "tapTrack", components: [
-					{ kind: "Image", src: t.thumbnail || "", className: "spotify-art", style: "width:40px; height:40px; margin:0 12px 0 10px;" },
-					{ kind: "Control", flex: 1, className: "spotify-meta", components: [
-						{ content: t.title || "", className: "spotify-row-title" },
-						{ content: ((t.artist || "") + (t.album ? " — " + t.album : "")), className: "spotify-row-sub" }
+				style: "background:#e5e5e5; border-bottom:1px solid #c3c3c3; padding:0 12px; height:54px; -webkit-box-sizing:border-box;", className: "streaming-row", tapHighlight: true, tapHighlightClassName: "active", onclick: "tapTrack", components: [
+					{ kind: "Image", src: t.thumbnail || "", className: "streaming-art", style: "width:40px; height:40px; margin:0 12px 0 10px;" },
+					{ kind: "Control", flex: 1, className: "streaming-meta", components: [
+						{ content: t.title || "", className: "streaming-row-title" },
+						{ content: ((t.artist || "") + (t.album ? " — " + t.album : "")), className: "streaming-row-sub" }
 					]},
-					{ name: "pp" + i, kind: "Image", showing: false, onclick: "onPlayPauseTap", style: "width:18px; height:18px; margin-left:12px;" },
-					{ content: this._fmtDur(t.duration_ms), className: "spotify-row-time", style: "text-align:right; padding-left:12px;" }
+					{ name: "fmt" + i, showing: false, className: "connector-fmt-badge", onclick: "onFmtTap", style: "margin-left:10px; padding:1px 7px; font-size:11px; line-height:16px; border:1px solid #9a9a9a; border-radius:9px; color:#555; background:#f2f2f2; white-space:nowrap;" },
+					{ name: "pp" + i, kind: "Image", showing: false, onclick: "onPlayPauseTap", style: "width:32px; height:32px; margin-left:12px;" },
+					{ content: this._fmtDur(t.duration_ms), className: "streaming-row-time", style: "text-align:right; padding-left:12px;" }
 				]
 			}, { owner: this });
 		}, this);
@@ -187,7 +188,9 @@ enyo.kind({
 		});
 		this._playingIndex = start;
 		this._isPlaying = true;
+		this._nowFormat = "";
 		this._updatePlayIcons();
+		this._updateFmtBadge();
 		this._startStatusPoll();
 		this.doSetPlaybackList({
 			arSetPlaybackList: list, intStartTrackIndex: start, intStartTrackTime: 0,
@@ -209,9 +212,12 @@ enyo.kind({
 			if (!d) { return; }
 			// stream player reports `ended` when the pipeline exits; librespot doesn't,
 			// so for Spotify just track is_playing on the tapped row.
-			if (!sp && d.ended) { this._stopStatusPoll(); this._playingIndex = -1; this._isPlaying = false; this._updatePlayIcons(); return; }
+			if (!sp && d.ended) { this._stopStatusPoll(); this._playingIndex = -1; this._isPlaying = false; this._nowFormat = ""; this._updatePlayIcons(); this._updateFmtBadge(); return; }
 			var playing = !!d.is_playing;
+			this._nowFormat = d.format || "";
+			this._nowFormats = d.formats || [];
 			if (playing !== this._isPlaying) { this._isPlaying = playing; this._updatePlayIcons(); }
+			this._updateFmtBadge();
 		}));
 	},
 	_updatePlayIcons: function () {
@@ -227,11 +233,39 @@ enyo.kind({
 			}
 		}
 	},
+	// Quality/format badge on the currently-playing row (fed by the backend status),
+	// hidden on the rest.
+	_updateFmtBadge: function () {
+		if (!this.tracks) { return; }
+		for (var i = 0; i < this.tracks.length; i++) {
+			var b = this.$["fmt" + i];
+			if (!b) { continue; }
+			if (i === this._playingIndex && this._nowFormat) {
+				b.setContent(this._nowFormat);
+				b.setShowing(true);
+			} else {
+				b.setShowing(false);
+			}
+		}
+	},
 	onPlayPauseTap: function (sender, ev) {
 		var sp = this._isSpotify();
 		if (this._isPlaying) { this._post(sp ? "/player/pause" : "/stream/pause"); this._isPlaying = false; }
 		else { this._post(sp ? "/player/play" : "/stream/resume"); this._isPlaying = true; }
 		this._updatePlayIcons();
+		return true; // don't bubble to tapTrack
+	},
+	// Tap the quality badge to cycle to the next available format and switch to it
+	// (re-resolves + restarts the current track in that format via the backend).
+	onFmtTap: function (sender, ev) {
+		var fmts = this._nowFormats || [];
+		if (fmts.length < 2) { return true; }
+		var idx = 0;
+		for (var k = 0; k < fmts.length; k++) { if (fmts[k] === this._nowFormat) { idx = k; break; } }
+		var next = fmts[(idx + 1) % fmts.length];
+		this._nowFormat = next; // optimistic; the status poll confirms
+		this._updateFmtBadge();
+		try { var x = new XMLHttpRequest(); x.open("POST", this.backend + "/stream/switchformat", true); x.setRequestHeader("Content-Type", "application/json"); x.send(JSON.stringify({ format: next })); } catch (e) {}
 		return true; // don't bubble to tapTrack
 	}
 });
