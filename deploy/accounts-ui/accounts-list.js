@@ -21,7 +21,7 @@ enyo.kind({
 		// grouped: ONE box, categories are sub-headers inside it
 		{name: "synergyBox", kind: "RowGroup", className: "accounts-group", showing: false, components: [
 			{name: "groupedList", kind: "VirtualRepeater", className: "accounts-rowgroup-item", onSetupRow: "groupedGetItem", onclick: "groupedTapped", components: [
-				{name: "catHeader", showing: false, style: "padding:14px 8px 4px 8px; font-size:11px; font-weight:bold; color:#8a8a8a; letter-spacing:0.05em;"},
+				{name: "catHeader", showing: false, className: "enyo-group-label"},		// same style as the RowGroup caption ("SYNERGY ACCOUNTS")
 				{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "start", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", style: "padding-top:6px; padding-bottom:6px;", components: [
 					{kind: "Image", name: "accountIcon", className: "icon-image"},
 					{kind: "VFlexBox", align: "start", components: [
