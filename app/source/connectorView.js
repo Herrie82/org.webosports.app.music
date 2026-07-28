@@ -33,9 +33,10 @@ enyo.kind({
 			]},
 			{ name: "authLabel", content: "", className: "spotify-authlabel" }
 		]},
-		// provider tabs (built from /providers)
-		{ name: "tabs", className: "connector-tabs", layoutKind: "HFlexLayout", align: "center",
-		  style: "padding:6px 8px; border-bottom:1px solid #c3c3c3; background:#ededed; overflow-x:auto;" },
+		// provider tabs — a native TabGroup (segmented bar, like Messaging), one tab
+		// per connector with its logo + name. Built from /providers in buildTabs().
+		{ name: "tabs", kind: "TabGroup", onChange: "onTabChange", className: "connector-tabs", pack: "center",
+		  style: "border-bottom:1px solid #c3c3c3; background:#ededed;" },
 		{ name: "searchRow", className: "spotify-searchrow", layoutKind: "HFlexLayout", align: "center", style: "padding:10px 12px 46px 12px; border-bottom:1px solid #c3c3c3; position:relative;", components: [
 			{ name: "search", kind: "Input", flex: 1, hint: $L("Search…"), onkeyup: "searchKey", style: "height:40px; font-size:16px; padding-right:40px;" },
 			{ name: "btnSearch", kind: "Image", src: "images/empty-search.png", onclick: "doSearch", style: "position:absolute; right:22px; top:16px; width:28px; height:28px;" }
@@ -74,43 +75,44 @@ enyo.kind({
 			enyo.bind(this, function () { this.$.authLabel.setContent($L("Backend offline")); })
 		);
 	},
+	// Short tab captions so long names don't crowd the segmented bar.
+	_shortName: function (p) {
+		var m = { youtube: "YouTube", archive: "Archive" };
+		return m[p.id] || p.name || p.id;
+	},
 	buildTabs: function (providers) {
-		var kids = this.$.tabs.children;
+		var kids = this.$.tabs.getControls ? this.$.tabs.getControls() : this.$.tabs.children;
 		for (var k = kids.length - 1; k >= 0; k--) { if (kids[k] && kids[k].destroy) { kids[k].destroy(); } }
 		// Include Spotify too (unified UI). Its tracks play via librespot rather than
 		// the stream player — the router picks the engine by path prefix; only the
 		// in-row transport endpoints differ (handled by _isSpotify below).
 		var list = [];
 		enyo.forEach(providers, function (p) { if (p && p.id) { list.push(p); } });
+		this._providersList = list;
 		if (!list.length) { this.$.authLabel.setContent($L("No connectors")); return; }
-		enyo.forEach(list, function (p) {
+		// One TabButton per connector: logo (icon) + name (caption). value = index,
+		// which onTabChange maps back to the provider via _providersList.
+		enyo.forEach(list, function (p, i) {
 			this.$.tabs.createComponent({
-				kind: "Button", content: p.name || p.id, provId: p.id, provName: p.name || p.id,
-				className: "connector-tab", onclick: "selectProvider",
-				style: "margin:0 4px; padding:6px 12px; font-size:14px;"
+				kind: "TabButton", value: i, provId: p.id, provName: p.name || p.id,
+				caption: this._shortName(p), icon: "images/connectors/" + p.id + ".png"
 			}, { owner: this });
 		}, this);
 		this.$.tabs.render();
-		if (!this._provider) { this._setProvider(list[0].id, list[0].name || list[0].id); }
-		this._highlightTabs();
+		this.$.tabs.setValue(0);
+		this._setProvider(list[0].id, list[0].name || list[0].id);
 	},
-	selectProvider: function (sender) {
-		this._setProvider(sender.provId, sender.provName);
-		this._highlightTabs();
+	// Fired when a tab is tapped; inValue is the selected tab's value (its index).
+	onTabChange: function (inSender, inValue) {
+		var p = this._providersList && this._providersList[inValue];
+		if (!p) { return; }
+		this._setProvider(p.id, p.name || p.id);
 		var q = this.$.search.getValue();
 		if (q) { this.doSearch(); } else { this._clearRows(); this.$.status.setContent(""); }
 	},
 	_setProvider: function (id, name) {
 		this._provider = id; this._providerName = name;
 		this.$.search.setHint($L("Search ") + name + "…");
-	},
-	_highlightTabs: function () {
-		enyo.forEach(this.$.tabs.children, function (b) {
-			if (!b.applyStyle) { return; }
-			var on = (b.provId === this._provider);
-			b.applyStyle("background", on ? "#4b91f7" : "");
-			b.applyStyle("color", on ? "#fff" : "");
-		}, this);
 	},
 
 	// --- search ---
