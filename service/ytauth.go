@@ -23,7 +23,7 @@ const (
 	ytOAuthClientID     = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
 	ytOAuthClientSecret = "SboVhoG9s0rNafixCSGGKXAT"
 	ytOAuthScope        = "https://www.googleapis.com/auth/youtube"
-	ytTokenFile         = "/media/internal/youtube-oauth.json"
+	ytTokenFile         = spotifyDataDir + "/youtube-oauth.json"
 )
 
 type ytToken struct {

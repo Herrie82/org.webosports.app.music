@@ -15,10 +15,12 @@ import (
 // plays through pulse with media.role=music (so Palm's audio policy routes it to
 // the speakers). This exact recipe was validated on-device.
 
+// Binaries, log and cache all live under spotifyDataDir (/media/cryptofs) — NOT
+// /media/internal, which would pin the USB-exported vfat partition. See paths.go.
 var (
-	librespotBin  = "/media/internal/librespot"
-	librespotLog  = "/media/internal/librespot.log"
-	librespotDir  = "/media/internal/librespot-cache"
+	librespotBin  = spotifyDataDir + "/librespot"
+	librespotLog  = spotifyDataDir + "/librespot.log"
+	librespotDir  = spotifyDataDir + "/librespot-cache"
 	librespotMu   sync.Mutex
 	librespotUp   bool
 )

@@ -12,12 +12,12 @@ import (
 // jamendoProvider: 100% free & legal Creative-Commons music via Jamendo's official
 // v3.0 API. No login/DRM/cipher — the API hands back a direct MP3 URL. Needs a
 // client_id (a public demo id ships as the default; override with a real one in
-// /media/internal/jamendo-clientid to avoid the demo's rate limits).
+// /media/cryptofs/spotify-webos/jamendo-clientid to avoid the demo's rate limits).
 type jamendoProvider struct{ clientID string }
 
 func newJamendoProvider() *jamendoProvider {
 	id := "b6747d04" // public demo client_id
-	if b, err := os.ReadFile("/media/internal/jamendo-clientid"); err == nil {
+	if b, err := os.ReadFile(spotifyDataDir + "/jamendo-clientid"); err == nil {
 		if s := strings.TrimSpace(string(b)); s != "" {
 			id = s
 		}

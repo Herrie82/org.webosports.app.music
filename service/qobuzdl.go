@@ -13,7 +13,7 @@ package main
 // in the credential file). request_sig = md5("trackgetFileUrlformat_id"+fid+
 //   "intentstream"+"track_id"+trackID+ts+app_secret).
 //
-// Credential file /media/internal/qobuz-auth (one value per line):
+// Credential file /media/cryptofs/spotify-webos/qobuz-auth (one value per line):
 //   line 1: email
 //   line 2: password
 //   line 3: app_id      (optional — else scraped)
@@ -46,7 +46,7 @@ type qobuzDL struct {
 
 func newQobuzDL() *qobuzDL {
 	q := &qobuzDL{hc: &http.Client{Timeout: 30 * time.Second}}
-	b, err := os.ReadFile("/media/internal/qobuz-auth")
+	b, err := os.ReadFile(spotifyDataDir + "/qobuz-auth")
 	if err != nil {
 		return q
 	}
@@ -155,7 +155,7 @@ func (q *qobuzDL) scrapeAppCreds(ctx context.Context) error {
 	}
 	c := qbCredsRe.FindStringSubmatch(bundle)
 	if c == nil {
-		return fmt.Errorf("app_id/app_secret not found in bundle (supply them in /media/internal/qobuz-auth lines 3-4)")
+		return fmt.Errorf("app_id/app_secret not found in bundle (supply them in /media/cryptofs/spotify-webos/qobuz-auth lines 3-4)")
 	}
 	q.appID, q.appSecret = c[1], c[2]
 	return nil

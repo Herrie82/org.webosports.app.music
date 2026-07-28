@@ -1,14 +1,14 @@
 #!/bin/sh
 # Runs ON the TouchPad. Headless PoC substitute for the Accounts-app "Add account"
 # UI: creates a Spotify account of type com.herrie.music.spotify and stores the
-# EXISTING working token (/media/internal/spotify-token.json) as its credentials.
+# EXISTING working token (/media/cryptofs/spotify-webos/spotify-token.json) as its credentials.
 # Then reads it back to prove the backend's account path.
 #
 # The exact addAccount signature varies across webOS builds, so this prints every
 # raw reply — if addAccount is rejected, copy the reply here and we adapt.
 set -e
 TEMPLATE=com.herrie.music.spotify
-TOKENFILE=/media/internal/spotify-token.json
+TOKENFILE=/media/cryptofs/spotify-webos/spotify-token.json
 A(){ luna-send -n 1 -a org.webosports.app.music.service "$@"; }
 
 echo "== 1. is our account type registered? =="

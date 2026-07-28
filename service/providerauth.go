@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	qobuzAuthFile  = "/media/internal/qobuz-auth"
-	deezerArlFile  = "/media/internal/deezer-arl"
+	qobuzAuthFile  = spotifyDataDir + "/qobuz-auth"
+	deezerArlFile  = spotifyDataDir + "/deezer-arl"
 	tidalAuthorize = "https://login.tidal.com/authorize"
 	tidalScope     = "r_usr w_usr"
 )

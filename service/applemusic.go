@@ -8,7 +8,7 @@ package main
 //
 // Needs two user-supplied secrets on device:
 //   /media/internal/device.wvd              — a Widevine L3 CDM (client-id + RSA key)
-//   /media/internal/apple-music-user-token  — the Music User Token (obtained via the
+//   /media/cryptofs/spotify-webos/apple-music-user-token  — the Music User Token (obtained via the
 //                                             MusicKit login, /appleauth/login)
 // The short-lived public web developer token is auto-fetched from music.apple.com.
 
@@ -35,9 +35,9 @@ import (
 const (
 	appleWebPlaybackURL    = "https://play.music.apple.com/WebObjects/MZPlay.woa/wa/webPlayback"
 	appleKeySystem         = "com.widevine.alpha"
-	appleUserTokenFile     = "/media/internal/apple-music-user-token"
+	appleUserTokenFile     = spotifyDataDir + "/apple-music-user-token"
 	appleWVDFile           = "/media/internal/device.wvd"
-	appleWebTokenCacheFile = "/media/internal/apple-webtoken.json"
+	appleWebTokenCacheFile = spotifyDataDir + "/apple-webtoken.json"
 	appleBrowserUA         = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 

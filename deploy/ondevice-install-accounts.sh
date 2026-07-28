@@ -28,9 +28,11 @@ for d in "$ROLES_PRV" "$ROLES_PUB"; do
     fi
 done
 
-echo "== install rebuilt backend (if staged) =="
+echo "== install rebuilt backend (if staged) -> /media/cryptofs (NOT /media/internal: =="
+echo "   a binary/log on the USB-exported vfat blocks 'USB drive' unmount) =="
 if [ -f "$STAGE/spotify-webos-service" ]; then
-    install -m 0755 "$STAGE/spotify-webos-service" /media/internal/spotify-webos-service
+    mkdir -p /media/cryptofs/spotify-webos
+    install -m 0755 "$STAGE/spotify-webos-service" /media/cryptofs/spotify-webos/spotify-webos-service
 fi
 
 echo "== sync + remount ro =="
@@ -49,7 +51,7 @@ echo "== restart backend =="
 initctl stop spotify-webos-service 2>/dev/null || true
 sleep 1
 initctl start spotify-webos-service 2>/dev/null || \
-    (/media/internal/spotify-webos-service >/var/log/spotify-webos-service.log 2>&1 &) || true
+    (/media/cryptofs/spotify-webos/spotify-webos-service >/var/log/spotify-webos-service.log 2>&1 &) || true
 
 echo "== DONE. Verify the type is registered: =="
 echo 'luna-send -n 1 -a test palm://com.palm.service.accounts/listAccountTemplates "{}"'

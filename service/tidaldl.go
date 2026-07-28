@@ -21,7 +21,7 @@ import (
 // tidalDL downloads DRM-free FLAC from Tidal using the user's OWN OAuth session
 // (the unofficial tidalapi device flow) — direct api.tidal.com, no mirror/relay.
 //
-// Credentials: /media/internal/tidal-token, a JSON blob captured from a tidalapi
+// Credentials: /media/cryptofs/spotify-webos/tidal-token, a JSON blob captured from a tidalapi
 // device login (see report). The access token is refreshed against
 // auth.tidal.com on 401 and the new token persisted back to that file.
 //
@@ -34,12 +34,12 @@ const (
 	tidalClientID     = "49YxDN9a2aFV6RTG"
 	tidalClientSecret = "" // web PKCE client is public
 	tidalRedirectURI  = "https://tidal.com/login/auth"
-	tidalTokenFile    = "/media/internal/tidal-token"
+	tidalTokenFile    = spotifyDataDir + "/tidal-token"
 	tidalAPIBase      = "https://api.tidal.com/v1"
 	tidalAuthTokenURL = "https://auth.tidal.com/v1/oauth2/token"
 )
 
-// tidalToken mirrors /media/internal/tidal-token.
+// tidalToken mirrors /media/cryptofs/spotify-webos/tidal-token.
 type tidalToken struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`

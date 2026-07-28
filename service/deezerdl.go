@@ -2,7 +2,7 @@ package main
 
 // Deezer lossless downloader (DIRECT first-party, no mirror/relay).
 //
-// Auth is the user's own ARL cookie (/media/internal/deezer-arl). Flow:
+// Auth is the user's own ARL cookie (/media/cryptofs/spotify-webos/deezer-arl). Flow:
 //   1. deezer.getUserData (arl cookie)   -> CSRF api_token (checkForm) + license_token
 //   2. api.deezer.com/track/isrc:<ISRC>  -> numeric track id
 //   3. song.getData {SNG_ID}             -> TRACK_TOKEN
@@ -45,7 +45,7 @@ type deezerDL struct {
 
 func newDeezerDL() *deezerDL {
 	arl := ""
-	if b, err := os.ReadFile("/media/internal/deezer-arl"); err == nil {
+	if b, err := os.ReadFile(spotifyDataDir + "/deezer-arl"); err == nil {
 		arl = strings.TrimSpace(string(b))
 	}
 	jar, _ := cookiejar.New(nil)

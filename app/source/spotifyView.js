@@ -152,7 +152,7 @@ enyo.kind({
 
 	needClientId: function () {
 		this.$.authLabel.setContent($L("No Client ID"));
-		this.$.status.setContent($L("⚠ No Spotify Client ID on the backend. Put it in /media/internal/spotify-client-id (and register redirect http://127.0.0.1:8730/auth/callback), then restart the service."));
+		this.$.status.setContent($L("⚠ No Spotify Client ID on the backend. Put it in /media/cryptofs/spotify-webos/spotify-client-id (and register redirect http://127.0.0.1:8730/auth/callback), then restart the service."));
 	},
 
 	startEmbeddedAuth: function (authUrl) {

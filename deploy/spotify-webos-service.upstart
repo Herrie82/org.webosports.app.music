@@ -7,6 +7,10 @@ stop on stopping LunaSysMgr
 # Restart if it ever dies.
 respawn
 
-# Binary + client-id file live on the persistent media partition.
-# Reads /media/internal/spotify-client-id automatically (see -client-id-file).
-exec /media/internal/spotify-webos-service -addr 127.0.0.1:8730
+# The backend + librespot + log + cache + all token/credential files live under
+# /media/cryptofs/spotify-webos (see service/paths.go). NOT /media/internal: that vfat
+# partition is exported in USB drive mode, and a binary/log/open-fd there blocks the
+# unmount ("USB drive Connection failed"). cryptofs is only suspended (not unmounted)
+# for MSM and persists across reboots. It reads the client id from
+# /media/cryptofs/spotify-webos/spotify-client-id (see -client-id-file).
+exec /media/cryptofs/spotify-webos/spotify-webos-service -addr 127.0.0.1:8730

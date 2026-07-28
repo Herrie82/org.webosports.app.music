@@ -14,7 +14,7 @@ import (
 
 // deezerProvider: Deezer search is a public, no-auth API, so metadata + 30s previews
 // work for everyone. FULL-track streaming needs a (free) Deezer account ARL in
-// /media/internal/deezer-arl: Deezer streams are Blowfish-scrambled, so we can't hand
+// /media/cryptofs/spotify-webos/deezer-arl: Deezer streams are Blowfish-scrambled, so we can't hand
 // the URL straight to gst — instead StreamURL points at a local /dzstream proxy that
 // fetches + descrambles on the fly (reusing deezerDescramble) and serves plain audio.
 type deezerProvider struct{ dl *deezerDL }

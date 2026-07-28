@@ -90,7 +90,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	dls := append([]LosslessDownloader(nil), downloaders...)
 	providersMu.RUnlock()
 	if len(dls) == 0 {
-		httpErr(w, http.StatusPreconditionFailed, "no lossless downloader configured (add credentials in /media/internal/)")
+		httpErr(w, http.StatusPreconditionFailed, "no lossless downloader configured (add credentials in /media/cryptofs/spotify-webos/)")
 		return
 	}
 	isrc := strings.TrimSpace(body.ISRC)

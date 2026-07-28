@@ -16,7 +16,7 @@ import (
 // rebuild the Spotify client; the client's token source is wrapped so that every
 // auto-refresh (access tokens last ~1h) is saved back too.
 
-var tokenPath = "/media/internal/spotify-token.json"
+var tokenPath = spotifyDataDir + "/spotify-token.json"
 
 func saveToken(tok *oauth2.Token) {
 	if tok == nil {
