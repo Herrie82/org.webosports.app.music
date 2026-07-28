@@ -57,6 +57,11 @@ func registerProvider(p MusicProvider) {
 // (Qobuz/Tidal) are only in the registry once configured, so they're inherently gated;
 // Spotify is always registered but is useless without a login session.
 func providerReady(id string) bool {
+	if id == "youtube" {
+		// YouTube official-song playback is blocked by the InnerTube signature-cipher
+		// wall (search works, but streams are ciphered) — hide it until that's solved.
+		return false
+	}
 	if id == "spotify" {
 		sess.mu.RLock()
 		ready := sess.client != nil
