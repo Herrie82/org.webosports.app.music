@@ -1,15 +1,23 @@
 # Accounts "Add an Account" + existing-accounts UX rework
 
-Customised copies of two enyo accounts-framework files on the device at
-`/usr/palm/frameworks/enyo/0.10/framework/lib/accounts/source/`:
+Customised copies of two enyo accounts-**framework** files + one accounts-**app** file
+(originals backed up to `<file>.orig` on-device; revert = copy .orig back + restart LunaSysMgr):
 
-- **add-account.js** — the "Add an Account" list. Phases:
-  - #2 grouped into category headers (Music, Email, Messaging & Chat, Cloud & Photos,
-    Contacts & Calendar, Phone, Other) derived from each template's capabilityProviders.
-  - #1 per-connector subtitle (e.g. "Music", "Email · Contacts · Calendar").
-  - #4 live search/filter box.
-- **accounts-list.js** — the existing-accounts list. Phase #3: a category subtitle
-  under each account name (e.g. Spotify → "Music").
+- **add-account.js** (framework `.../lib/accounts/source/`) — the "Add an Account" list:
+  - Grouped into native RowGroup boxes **per category** (Email, Contacts & Calendar,
+    Messaging & Chat, Cloud & Photos, Music, Phone, Other) derived from each template's
+    `capabilityProviders`. Assignment keeps messaging apps in Messaging (not Contacts);
+    display order is fixed as above.
+  - Per-connector **capability subtitle** (e.g. "Email · Messaging · Contacts").
+  - Native **RoundedSearchInput** filter box; no "Find More…" row.
+- **accounts-list.js** (framework) — the existing-accounts list, `grouped:true`:
+  - **Nested boxes**: an outer **SYNERGY ACCOUNTS** RowGroup containing an inner box
+    per category, tightened so the inner boxes sit flush to the outer frame.
+  - Rows: icon + [name / capability subtitle] top-aligned; credentials right-aligned.
+  - Flat mode kept for the SIM list.
+- **AccountManager.js** (app `com.palm.app.accounts/source/`) — synergy list wrapper is a
+  plain Control (accounts-list draws its own SYNERGY ACCOUNTS box); `grouped:true` +
+  `groupTitle`. Also guards the AppMenu-owned `deleteDataMenuItem` (fixes an Uncaught
+  TypeError on launch).
 
-Deploy with `deploy-accounts-ui.sh`. Originals are backed up to `<file>.orig` on-device.
-Revert: copy the .orig back and restart LunaSysMgr.
+Deploy: `novacom put` the three .js files to /media/internal, then run `deploy-accounts-ui.sh`.
