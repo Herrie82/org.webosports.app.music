@@ -58,7 +58,7 @@ enyo.kind({
 		{name: "synergyBox", kind: "RowGroup", className: "accounts-group", showing: false, components: [
 			// negative margin pulls the inner category boxes out to the outer frame,
 			// removing the top/bottom/side spacing inside the SYNERGY ACCOUNTS box.
-			{name: "groups", style: "margin: -10px -8px;"}
+			{name: "groups", style: "margin: -16px -8px -14px -8px;"}		// top/bottom pulled to match the side inset
 		]},
 		// flat (SIM etc.)
 		{name: "list", kind: "VirtualRepeater", onSetupRow: "listGetItem", onclick: "accountSelected", className:"accounts-rowgroup-item", components: [
