@@ -58,9 +58,11 @@ func registerProvider(p MusicProvider) {
 // Spotify is always registered but is useless without a login session.
 func providerReady(id string) bool {
 	if id == "youtube" {
-		// YouTube official-song playback is blocked by the InnerTube signature-cipher
-		// wall (search works, but streams are ciphered) — hide it until that's solved.
-		return false
+		// Official-song playback now works self-contained: the ANDROID_VR InnerTube
+		// client returns direct, un-ciphered, un-throttled audio URLs, and an anonymous
+		// visitor session (visitorData + visitor cookies) clears the bot-check — no
+		// OAuth, no PoToken, no signature descrambling. Always available.
+		return true
 	}
 	if id == "spotify" {
 		sess.mu.RLock()

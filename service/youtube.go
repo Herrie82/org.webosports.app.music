@@ -8,7 +8,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -28,6 +31,7 @@ const innertubeKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
 
 type itClient struct {
 	name, version, userAgent string
+	num                      int // X-Youtube-Client-Name (0 = omit)
 	extra                    map[string]interface{}
 }
 
@@ -37,9 +41,7 @@ type itClient struct {
 // ANDROID_VR is the most reliable; embedded players bypass many age/precondition
 // gates.
 var itPlayerClients = []itClient{
-	{name: "ANDROID_VR", version: "1.60.19",
-		userAgent: "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12; Quest 3)",
-		extra:     map[string]interface{}{"androidSdkVersion": 32, "deviceModel": "Quest 3"}},
+	androidVRClient,
 	{name: "TVHTML5_SIMPLY_EMBEDDED_PLAYER", version: "2.0",
 		extra: map[string]interface{}{"clientScreen": "EMBED"}},
 	{name: "WEB_EMBEDDED_PLAYER", version: "1.20240723.01.00",
@@ -58,23 +60,92 @@ var itAuthedClients = []itClient{
 	// Mobile clients return UN-ciphered URLs; with the OAuth token they also clear
 	// the bot-check. TVHTML5 is a fallback (clears the check but returns ciphered
 	// URLs we can't yet descramble).
-	{name: "ANDROID_VR", version: "1.60.19",
-		userAgent: "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12; Quest 3)",
-		extra:     map[string]interface{}{"androidSdkVersion": 32, "deviceModel": "Quest 3"}},
+	androidVRClient,
 	{name: "ANDROID", version: "19.29.37",
 		userAgent: "com.google.android.youtube/19.29.37 (Linux; U; Android 11) gzip",
 		extra:     map[string]interface{}{"androidSdkVersion": 30}},
 	{name: "TVHTML5", version: "7.20240724.13.00"},
 }
 
-var itHTTP = &http.Client{Timeout: 25 * time.Second}
+// androidVRClient is the Oculus Quest ("VR") InnerTube client. Its player responses
+// carry DIRECT, un-ciphered, un-throttled audio URLs and — crucially — it clears the
+// "sign in to confirm you're not a bot" gate on OFFICIAL music tracks (the ATV art
+// tracks) with NOTHING but an anonymous visitor session (visitorData + visitor
+// cookies). No OAuth, no PoToken, no signature descrambling. This is the whole reason
+// YouTube Music playback works self-contained on-device. Client name number is 28.
+var androidVRClient = itClient{
+	name: "ANDROID_VR", version: "1.65.10", num: 28,
+	userAgent: "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+	extra: map[string]interface{}{
+		"deviceMake": "Oculus", "deviceModel": "Quest 3",
+		"androidSdkVersion": 32, "osName": "Android", "osVersion": "12L",
+	},
+}
+
+// itHTTP carries a cookie jar so the anonymous visitor cookies YouTube sets on the
+// bootstrap page GET (VISITOR_INFO1_LIVE / VISITOR_PRIVACY_METADATA / YSC / SOCS) ride
+// along on the subsequent InnerTube POSTs — required, together with visitorData, to
+// clear the bot-check for official music.
+var itHTTP = func() *http.Client {
+	jar, _ := cookiejar.New(nil)
+	return &http.Client{Timeout: 25 * time.Second, Jar: jar}
+}()
+
+// ---- anonymous visitor session (visitorData) ----
+// yt-dlp's trick: GET a normal YouTube page (which Set-Cookies a visitor session and
+// embeds a matching "visitorData" token in its ytcfg), then send BOTH on every player
+// call. Cached and refreshed lazily; a stale token just re-bootstraps.
+var (
+	ytVisMu     sync.Mutex
+	ytVisData   string
+	ytVisAt     time.Time
+	ytVisitorRe = regexp.MustCompile(`"visitorData":\s*"([^"]+)"`)
+)
+
+const ytVisitorTTL = 3 * time.Hour
+
+// ytVisitorData returns a cached visitorData token, bootstrapping one if missing/stale.
+// force=true discards the cache first (used after a LOGIN_REQUIRED to get a fresh one).
+func ytVisitorData(ctx context.Context, force bool) string {
+	ytVisMu.Lock()
+	defer ytVisMu.Unlock()
+	if !force && ytVisData != "" && time.Since(ytVisAt) < ytVisitorTTL {
+		return ytVisData
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		"https://www.youtube.com/?bpctr=9999999999&has_verified=1", nil)
+	if err != nil {
+		return ytVisData
+	}
+	// A browser UA on the bootstrap page so the ytcfg (and its visitorData) is present.
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	resp, err := itHTTP.Do(req)
+	if err != nil {
+		log.Printf("youtube visitor bootstrap: %v", err)
+		return ytVisData
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if m := ytVisitorRe.FindSubmatch(body); m != nil {
+		ytVisData = string(m[1])
+		ytVisAt = time.Now()
+		log.Printf("youtube visitor bootstrap: got visitorData (len %d)", len(ytVisData))
+	} else {
+		log.Printf("youtube visitor bootstrap: visitorData not found in page")
+	}
+	return ytVisData
+}
 
 // innertubePost issues an InnerTube v1 call and returns the raw top-level fields.
 // If bearer != "" the request is authenticated as the signed-in YouTube account
 // (Authorization: Bearer), which clears the "confirm you're not a bot" gate.
-func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body map[string]interface{}, bearer string) (map[string]json.RawMessage, error) {
+func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body map[string]interface{}, bearer, visitorData string) (map[string]json.RawMessage, error) {
 	client := map[string]interface{}{
 		"clientName": cl.name, "clientVersion": cl.version, "hl": "en", "gl": "US",
+	}
+	if visitorData != "" {
+		client["visitorData"] = visitorData
 	}
 	for k, v := range cl.extra {
 		client[k] = v
@@ -99,6 +170,13 @@ func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body
 		req.Header.Set("User-Agent", cl.userAgent)
 	}
 	req.Header.Set("Origin", "https://"+host)
+	if cl.num != 0 {
+		req.Header.Set("X-Youtube-Client-Name", fmt.Sprintf("%d", cl.num))
+		req.Header.Set("X-Youtube-Client-Version", cl.version)
+	}
+	if visitorData != "" {
+		req.Header.Set("X-Goog-Visitor-Id", visitorData)
+	}
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
@@ -124,30 +202,36 @@ func (y *youtubeProvider) StreamURL(ctx context.Context, trackID string) (string
 	if trackID == "" {
 		return "", fmt.Errorf("no track id")
 	}
-	// Build the attempt list: signed-in clients first (they clear the bot-check),
-	// then anonymous fallbacks for unrestricted videos.
+	// Build the attempt list: anonymous clients FIRST — ANDROID_VR + a visitor session
+	// resolves official music with no login, no cipher, no throttle. The OAuth clients
+	// are only a fallback (and a stale TV-issued token otherwise just wastes attempts).
 	type attempt struct {
 		cl     itClient
 		bearer string
 	}
 	var attempts []attempt
+	for _, cl := range itPlayerClients {
+		attempts = append(attempts, attempt{cl, ""})
+	}
 	token := ytAccessToken()
 	if token != "" {
 		for _, cl := range itAuthedClients {
 			attempts = append(attempts, attempt{cl, token})
 		}
 	}
-	for _, cl := range itPlayerClients {
-		attempts = append(attempts, attempt{cl, ""})
-	}
-	log.Printf("youtube resolve %s: authed=%v (%d attempts)", trackID, token != "", len(attempts))
+	// Anonymous visitor session — the key that clears the bot-check on official music
+	// for ANDROID_VR. Fetched once, refreshed on demand if a call comes back LOGIN_REQUIRED.
+	vd := ytVisitorData(ctx, false)
+	log.Printf("youtube resolve %s: authed=%v visitor=%v (%d attempts)", trackID, token != "", vd != "", len(attempts))
 
 	var lastErr error
+	refreshedVD := false
 	for _, a := range attempts {
 		cl := a.cl
+	retry:
 		res, err := innertubePost(ctx, "www.youtube.com", "player", cl, map[string]interface{}{
 			"videoId": trackID, "contentCheckOk": true, "racyCheckOk": true,
-		}, a.bearer)
+		}, a.bearer, vd)
 		if err != nil {
 			log.Printf("youtube player %s(%s): %v", cl.name, trackID, err)
 			lastErr = err
@@ -161,6 +245,16 @@ func (y *youtubeProvider) StreamURL(ctx context.Context, trackID string) (string
 			}
 			_ = json.Unmarshal(ps, &st)
 			if st.Status != "" && st.Status != "OK" {
+				// A bot/login gate usually means our visitor token went stale — mint a
+				// fresh one and retry this client ONCE before giving up on it.
+				if !refreshedVD && (st.Status == "LOGIN_REQUIRED" || strings.Contains(st.Reason, "bot")) {
+					refreshedVD = true
+					vd = ytVisitorData(ctx, true)
+					if vd != "" {
+						log.Printf("youtube player %s(%s): %s → retrying with fresh visitorData", cl.name, trackID, st.Status)
+						goto retry
+					}
+				}
 				lastErr = fmt.Errorf("%s: %s %s", cl.name, st.Status, st.Reason)
 				log.Printf("youtube player %s(%s): %v", cl.name, trackID, lastErr)
 				continue
@@ -241,11 +335,14 @@ func (y *youtubeProvider) Search(ctx context.Context, query string, limit int) (
 	if limit <= 0 || limit > 40 {
 		limit = 25
 	}
-	web := itClient{name: "WEB", version: "2.20240726.00.00", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+	web := itClient{name: "WEB", version: "2.20240726.00.00", num: 1, userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+	// Search is anonymous: the visitor session is enough. Never pass the OAuth token
+	// here — it's issued for the TVHTML5 client and pairing it with WEB yields http 400
+	// INVALID_ARGUMENT.
 	res, err := innertubePost(ctx, "www.youtube.com", "search", web, map[string]interface{}{
 		"query":  query,
 		"params": "EgIQAQ%3D%3D", // filter: videos only
-	}, ytAccessToken())
+	}, "", ytVisitorData(ctx, false))
 	if err != nil {
 		return nil, err
 	}
