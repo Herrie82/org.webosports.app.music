@@ -71,7 +71,7 @@ enyo.kind({
 					{ name: "codeDigits", style: "font-size:34px; font-weight:bold; letter-spacing:6px; padding:8px 0 6px; font-family:monospace;", content: "" },
 					{ className: "accounts-body-text", style: "opacity:0.6; font-size:13px;", content: "On your phone or computer: open link.tidal.com, sign in, and enter the code above." }
 				]},
-				{ name: "codeRetry", showing: false, kind: "Button", caption: "Try again", className: "accounts-btn", onclick: "startTidalWeb" }
+				{ name: "codeRetry", showing: false, kind: "Button", caption: "Try again", className: "accounts-btn", onclick: "retryCode" }
 			]},
 
 			// Spotify OAuth web view (hidden until needed)
@@ -118,6 +118,7 @@ enyo.kind({
 		if (id === "tidal") { return "tidal"; }
 		if (id === "qobuz") { return "qobuz"; }
 		if (id === "deezer") { return "deezer"; }
+		if (id === "apple") { return "apple"; }
 		return "noauth";
 	},
 
@@ -144,6 +145,14 @@ enyo.kind({
 				this.$.codeTitle.setContent("Sign in to Tidal");
 				this.$.codeStatus.setContent("Loading Tidal sign-in…");
 				this.startTidalWeb();
+				break;
+			case "apple":
+				this.$.entryBox.setShowing(false);
+				this.$.codeBox.setShowing(true);
+				this.$.codeWrap.setShowing(false);
+				this.$.codeTitle.setContent("Sign in to Apple Music");
+				this.$.codeStatus.setContent("Loading Apple sign-in…");
+				this.startAppleWeb();
 				break;
 			default: // noauth
 				this.$.bodyText.setContent("Add <b>" + this.serviceName + "</b> as a music source.");
@@ -266,6 +275,46 @@ enyo.kind({
 	_extractParam: function (u, k) {
 		var m = new RegExp("[?&]" + k + "=([^&#]+)").exec(u || "");
 		return m ? decodeURIComponent(m[1]) : "";
+	},
+
+	// Mode-aware retry for the shared "Try again" button in the code/web box.
+	retryCode: function () {
+		if (this.mode === "apple") { this.startAppleWeb(); } else { this.startTidalWeb(); }
+	},
+
+	// --- Apple Music: MusicKit sign-in (webview) + poll for the saved token ---
+	startAppleWeb: function () {
+		this.$.codeRetry.setShowing(false);
+		this.get(BACKEND + "/appleauth/status", enyo.bind(this, function (ok, j) {
+			if (ok && j && j.hasCDM === false) {
+				this.$.codeStatus.setContent("Put your device.wvd at /media/internal/device.wvd, then tap Try again.");
+				this.$.codeRetry.setShowing(true);
+				return;
+			}
+			this.$.codeBox.setShowing(false);
+			try {
+				this.$.web.setShowing(true);
+				this.$.web.setUrl("atlas-simple:" + BACKEND + "/appleauth/login");
+				this.$.web.render();
+			} catch (e) {
+				this.$.codeBox.setShowing(true);
+				this.$.codeStatus.setContent("Web view error: " + e);
+				this.$.codeRetry.setShowing(true);
+				return;
+			}
+			this.startPollFn("applePollOnce", 2000);
+		}));
+	},
+	applePollOnce: function () {
+		this.get(BACKEND + "/appleauth/status", enyo.bind(this, function (ok, j) {
+			if (ok && j && j.authenticated) {
+				this.stopPoll();
+				this.$.web.setShowing(false);
+				this.$.codeBox.setShowing(true);
+				this.$.codeStatus.setContent("Apple Music connected!");
+				this.finishService("Apple Music");
+			}
+		}));
 	},
 
 	// --- Spotify OAuth ---
