@@ -444,9 +444,22 @@ enyo.kind(
 		if(!( Utilities.isNumeric(intDuration)))
 		{
 			intDuration = 0;
-			
+
 		}
-		
+
+		// Stream connectors (YouTube/SoundCloud/…) play through the gst pipeline, which
+		// doesn't report a total length, so getAudioDuration() is 0. Fall back to the
+		// duration carried in the track's metadata (set from the provider search) so the
+		// now-playing scrubber shows the full song length instead of 0:00.
+		if(!intDuration)
+		{
+			var it = this.$.PlaybackList.getCurrentPlayBackItem();
+			if(it && Utilities.isNumeric(it.duration))
+			{
+				intDuration = it.duration;
+			}
+		}
+
 		if(boolFormatted)
 		{
 			return Utilities.formatTime(intDuration);
