@@ -14,7 +14,7 @@ enyo.kind({
 	published: { accounts: [], caption: "", ownerList: null },
 	events: { onAccountRow_Selected: "" },
 	components: [
-		{name: "grp", kind: "RowGroup", className: "accounts-group", components: [
+		{name: "grp", kind: "RowGroup", className: "accounts-group", style: "margin: 2px 2px;", components: [
 			{name: "list", kind: "VirtualRepeater", className: "accounts-rowgroup-item", onSetupRow: "setupRow", onclick: "rowTapped", components: [
 				{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "start", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", style: "padding-top:6px; padding-bottom:6px;", components: [
 					{kind: "Image", name: "agIcon", className: "icon-image"},
@@ -58,7 +58,7 @@ enyo.kind({
 		{name: "synergyBox", kind: "RowGroup", className: "accounts-group", showing: false, components: [
 			// negative margin pulls the inner category boxes out to the outer frame,
 			// removing the top/bottom/side spacing inside the SYNERGY ACCOUNTS box.
-			{name: "groups", style: "margin: -8px -6px;"}
+			{name: "groups", style: "margin: -10px -8px;"}
 		]},
 		// flat (SIM etc.)
 		{name: "list", kind: "VirtualRepeater", onSetupRow: "listGetItem", onclick: "accountSelected", className:"accounts-rowgroup-item", components: [
