@@ -119,8 +119,7 @@ enyo.kind({
 		{className:"accounts-footer-shadow"},
 		{kind:"Toolbar", className:"enyo-toolbar-light", components:[
 			{kind: "Button", label: AccountsUtil.BUTTON_CANCEL, className:"accounts-toolbar-btn", onclick: "doAddAccount_Cancel"}
-		]},
-		{kind: "PalmService", service: "palm://com.palm.applicationManager/", method: "open", name: "openAppCatalog"}
+		]}
 	],
 
 	showAvailableAccounts: function(templates, capability) {
@@ -205,33 +204,11 @@ enyo.kind({
 			fg.setItems(all); any = all.length > 0;
 		}
 
-		// "Find more" as its own single-row group (not for the Phone app / not while filtering)
-		if (!this._filter && this.capability !== "PHONE") {
-			var fmg = this.$.groups.createComponent({kind: "RowGroup", className: "accounts-group"}, {owner: this});
-			fmg.createComponent({kind: "Control", className: "accounts-rowgroup-item", components: [
-				{kind: "Item", findMore: true, layoutKind: "HFlexLayout", align: "center", tapHighlight: true,
-					className: "accounts-list-item enyo-text-ellipsis enyo-single", onclick: "findMoreTapped", components: [
-						{kind: "Image", className: "icon-image", src: AccountsUtil.libPath + "images/appcatalog-32x32.png"},
-						{content: AccountsUtil.TEXT_FIND_MORE}
-					]}
-			]}, {owner: this});
-		}
-
 		if (this.$.noResults) { this.$.noResults.setShowing(!any && !!this._filter); }
 		this.$.groups.render();
 	},
 
 	groupItemSelected: function(inSender, inEvent) {
 		if (inEvent && inEvent.template) { this.doAddAccount_AccountSelected(inEvent.template); }
-	},
-
-	findMoreTapped: function() {
-		this.$.openAppCatalog.call({"id": "com.palm.app.enyo-findapps",	"params": {"common": {"sceneType": "search", "params": {
-			"type": "connector",
-			"connectorInfo": {
-				"searchBarTitle" : AccountsUtil.getSynergyTitle(this.capability),
-				"searchBarIcon" : AccountsUtil.libPath + "images/acounts-48x48.png",
-				"types": (enyo.isArray(this.capability)? this.capability: [this.capability])
-			}}}}});
 	}
 });
