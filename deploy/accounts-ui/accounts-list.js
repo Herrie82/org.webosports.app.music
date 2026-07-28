@@ -81,7 +81,14 @@ enyo.kind({
 	],
 	displayOrder: [$L("EMAIL"), $L("CONTACTS & CALENDAR"), $L("MESSAGING & CHAT"), $L("CLOUD & PHOTOS"), $L("MUSIC"), $L("PHONE")],
 	otherLabel: $L("OTHER"),
-	subLabels: {"MUSIC": $L("Music"), "EMAIL": $L("Email"), "MESSAGING & CHAT": $L("Messaging"), "CLOUD & PHOTOS": $L("Cloud & Photos"), "CONTACTS & CALENDAR": $L("Contacts & Calendar"), "PHONE": $L("Phone")},
+	// Per-row subtitle: list up to 3 of the connector's capabilities (like Add-Account).
+	capLabels: {
+		"Music": $L("Music"), "MAIL": $L("Email"), "MESSAGING": $L("Messaging"), "IM": $L("Messaging"),
+		"CONTACTS": $L("Contacts"), "REMOTECONTACTS": $L("Contacts"), "CALENDAR": $L("Calendar"),
+		"TASKS": $L("Tasks"), "MEMOS": $L("Notes"), "DOCUMENTS": $L("Files"),
+		"PHOTO.UPLOAD": $L("Photos"), "VIDEO.UPLOAD": $L("Videos"), "PHONE": $L("Calls"), "SMS": $L("SMS")
+	},
+	subtitleOrder: ["Music","MAIL","MESSAGING","IM","CONTACTS","REMOTECONTACTS","CALENDAR","DOCUMENTS","PHOTO.UPLOAD","VIDEO.UPLOAD","TASKS","MEMOS","PHONE","SMS"],
 
 	getAccountsList: function (capability, exclude, dontDisplayErrors) {
 		this.dontDisplayErrors = dontDisplayErrors;
@@ -139,7 +146,7 @@ enyo.kind({
 	fillRow: function($, a) {
 		if (a.icon && a.icon.loc_32x32) { $.accountIcon.setSrc(a.icon.loc_32x32); }
 		$.accountName.setContent(a.alias || a.loc_name);
-		$.accountCategory.setContent(this._categoryLabel(a));
+		$.accountCategory.setContent(this.subtitleFor(a));
 		$.emailAddress.setContent(a.username);
 		if (this.accountStatus && this.accountStatus[a._id] && this.accountStatus[a._id].currentError) { $.errorIcon.show(); }
 		else { $.errorIcon.hide(); }
@@ -184,9 +191,13 @@ enyo.kind({
 		for (var i = 0; i < this.categoryOrder.length; i++) { if (caps[this.categoryOrder[i].cap]) { return this.categoryOrder[i].label; } }
 		return this.otherLabel;
 	},
-	_categoryLabel: function(a) {
-		var cap = this._categoryCaption(a);
-		return this.subLabels[cap] || "";
+	subtitleFor: function(a) {
+		var caps = this._capsForAccount(a), seen = {}, parts = [];
+		for (var i = 0; i < this.subtitleOrder.length && parts.length < 3; i++) {
+			var lbl = this.capLabels[this.subtitleOrder[i]];
+			if (caps[this.subtitleOrder[i]] && lbl && !seen[lbl]) { seen[lbl] = true; parts.push(lbl); }
+		}
+		return parts.join(" · ");
 	},
 
 	receivedSyncStatus: function(inSender, inResponse, inRequest) {
