@@ -50,7 +50,9 @@ enyo.kind({
 			// Spotify now lives as a tab inside Connectors, so it no longer needs its
 			// own left-menu entry (the pane + kindSpotifyView remain for account sync).
 			{name: "libConnectors", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "Connectors", className: "connectors", onclick: "onClickLibrary", components: [
-				{className: "icon"},
+				// Inline style (not CSS) so it bypasses webOS's sticky CSS cache; the
+				// url is relative to index.html (app root), so no ../ prefix.
+				{className: "icon", style: "width:32px;height:32px;margin-right:8px;background:url(images/bg_nav_connectors.png) no-repeat 50% 50%;-webkit-background-size:32px 32px;background-size:32px 32px;"},
 				{content: $L("Connectors"), className: "name", flex:1}
 			]},
 			{name: "libAutoList", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "AutoList", className: "autolist", onclick: "onClickLibrary", components: [
