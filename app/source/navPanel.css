@@ -57,6 +57,17 @@
 .navView .group .genres {
   background-image:url(../images/bg_nav_genres.png)
 }
+/* Connectors: stacked music sources + a note. Targets the .icon child via the
+   proven .navigation selector (same as the AutoList/FlyList/Spotify nav icons),
+   with an explicit size so the glyph always renders. */
+.navigation .connectors .icon {
+	width: 32px;
+	height: 32px;
+	margin-right: 8px;
+	background: url(../images/bg_nav_connectors.png) no-repeat 50% 50%;
+	-webkit-background-size: 32px 32px;
+	background-size: 32px 32px;
+}
 .navView .group.playlists .itemPlaylist
 {
 	padding-left: 0px;
