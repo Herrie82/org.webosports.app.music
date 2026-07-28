@@ -24,11 +24,18 @@ type track struct {
 	Thumbnail  string `json:"thumbnail"`
 }
 
-func normalizeTrack(t spotify.FullTrack) track {
-	img := ""
-	if len(t.Album.Images) > 0 {
-		img = t.Album.Images[0].URL
+// spotifyThumb picks the SMALLEST album image. Spotify orders Images largest-first
+// (typically 640, 300, 64), so the last one is ~64px — right for a list-row thumbnail
+// and far quicker to load on-device than the 640px cover.
+func spotifyThumb(images []spotify.Image) string {
+	if len(images) == 0 {
+		return ""
 	}
+	return images[len(images)-1].URL
+}
+
+func normalizeTrack(t spotify.FullTrack) track {
+	img := spotifyThumb(t.Album.Images)
 	artist, artistID := "", ""
 	if len(t.Artists) > 0 {
 		artist, artistID = t.Artists[0].Name, string(t.Artists[0].ID)

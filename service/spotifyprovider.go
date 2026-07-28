@@ -39,10 +39,7 @@ func (s *spotifyProvider) Search(ctx context.Context, query string, limit int) (
 	out := []providerTrack{}
 	if res.Tracks != nil {
 		for _, t := range res.Tracks.Tracks {
-			img := ""
-			if len(t.Album.Images) > 0 {
-				img = t.Album.Images[0].URL
-			}
+			img := spotifyThumb(t.Album.Images)
 			artist := ""
 			if len(t.Artists) > 0 {
 				artist = t.Artists[0].Name
