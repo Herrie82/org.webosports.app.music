@@ -47,10 +47,8 @@ enyo.kind({
 				{content: $L("Genres"), className: "name", flex:1}
 				//{content: $L("Genres"), className: "name"}
 			]},
-			{name: "libSpotify", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "Spotify", className: "spotify", onclick: "onClickLibrary", components: [
-				{className: "icon"},
-				{content: $L("Spotify"), className: "name", flex:1}
-			]},
+			// Spotify now lives as a tab inside Connectors, so it no longer needs its
+			// own left-menu entry (the pane + kindSpotifyView remain for account sync).
 			{name: "libConnectors", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "Connectors", className: "connectors", onclick: "onClickLibrary", components: [
 				{className: "icon"},
 				{content: $L("Connectors"), className: "name", flex:1}
