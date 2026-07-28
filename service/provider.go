@@ -15,12 +15,48 @@ import (
 // librespot/Connect, no stream URL); "stream-URL" providers (SoundCloud,
 // YouTube, Deezer, …) return a direct URL that the shared gst player plays.
 type MusicProvider interface {
-	ID() string           // short id, e.g. "spotify", "youtube", "soundcloud"
-	Name() string         // display name
+	ID() string   // short id, e.g. "spotify", "youtube", "soundcloud"
+	Name() string // display name
 	Search(ctx context.Context, query string, limit int) ([]providerTrack, error)
 	// StreamURL resolves a playable http(s) audio URL for a track id, or "" if
 	// this provider plays via its own mechanism (Spotify → Connect/librespot).
 	StreamURL(ctx context.Context, trackID string) (string, error)
+}
+
+// formatSelector is an OPTIONAL provider capability: resolve a stream URL preferring a
+// specific format label (e.g. "OPUS 160") for the tap-to-switch selector. Only YouTube
+// implements it; resolveStream falls back to plain StreamURL for everyone else.
+type formatSelector interface {
+	StreamURLFormat(ctx context.Context, trackID, format string) (string, error)
+}
+
+// current stream context so /stream/switchformat can re-resolve the playing track in a
+// different format without the UI having to re-send the track id.
+var (
+	curMu       sync.Mutex
+	curProvider MusicProvider
+	curTrackID  string
+)
+
+func setStreamContext(p MusicProvider, trackID string) {
+	curMu.Lock()
+	curProvider, curTrackID = p, trackID
+	curMu.Unlock()
+}
+
+func streamContext() (MusicProvider, string) {
+	curMu.Lock()
+	defer curMu.Unlock()
+	return curProvider, curTrackID
+}
+
+func resolveStream(ctx context.Context, p MusicProvider, trackID, format string) (string, error) {
+	if format != "" {
+		if fs, ok := p.(formatSelector); ok {
+			return fs.StreamURLFormat(ctx, trackID, format)
+		}
+	}
+	return p.StreamURL(ctx, trackID)
 }
 
 // providerTrack is the normalised track shape returned to the app.
@@ -126,9 +162,10 @@ func handleProviderRoute(w http.ResponseWriter, r *http.Request) {
 	case "play":
 		var body struct {
 			TrackID string `json:"trackId"`
+			Format  string `json:"format"` // optional preferred format label (selector)
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		url, err := p.StreamURL(r.Context(), body.TrackID)
+		url, err := resolveStream(r.Context(), p, body.TrackID, body.Format)
 		if err != nil {
 			httpErr(w, http.StatusBadGateway, err.Error())
 			return
@@ -137,6 +174,7 @@ func handleProviderRoute(w http.ResponseWriter, r *http.Request) {
 			httpErr(w, http.StatusConflict, id+" has no stream URL (plays via its own engine)")
 			return
 		}
+		setStreamContext(p, body.TrackID) // remember for /stream/switchformat
 		if err := playStreamURL(url); err != nil {
 			httpErr(w, http.StatusBadGateway, err.Error())
 			return

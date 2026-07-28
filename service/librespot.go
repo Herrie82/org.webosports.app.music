@@ -18,11 +18,11 @@ import (
 // Binaries, log and cache all live under spotifyDataDir (/media/cryptofs) — NOT
 // /media/internal, which would pin the USB-exported vfat partition. See paths.go.
 var (
-	librespotBin  = spotifyDataDir + "/librespot"
-	librespotLog  = spotifyDataDir + "/librespot.log"
-	librespotDir  = spotifyDataDir + "/librespot-cache"
-	librespotMu   sync.Mutex
-	librespotUp   bool
+	librespotBin = spotifyDataDir + "/librespot"
+	librespotLog = spotifyDataDir + "/librespot.log"
+	librespotDir = spotifyDataDir + "/librespot-cache"
+	librespotMu  sync.Mutex
+	librespotUp  bool
 )
 
 // gstDevice: librespot subprocess sink. ffaudioresample -> native 48kHz avoids

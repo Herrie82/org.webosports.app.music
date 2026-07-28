@@ -58,11 +58,11 @@ func (s *soundcloudProvider) getClientID(ctx context.Context, force bool) (strin
 }
 
 type scTrack struct {
-	ID           int64  `json:"id"` // int64: SoundCloud IDs exceed 2^31 (GOARCH=arm int is 32-bit)
-	Title        string `json:"title"`
-	Duration     int    `json:"duration"` // ms
-	ArtworkURL   string `json:"artwork_url"`
-	User         struct {
+	ID         int64  `json:"id"` // int64: SoundCloud IDs exceed 2^31 (GOARCH=arm int is 32-bit)
+	Title      string `json:"title"`
+	Duration   int    `json:"duration"` // ms
+	ArtworkURL string `json:"artwork_url"`
+	User       struct {
 		Username string `json:"username"`
 	} `json:"user"`
 	Media struct {

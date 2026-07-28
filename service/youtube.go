@@ -199,6 +199,17 @@ func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body
 // StreamURL resolves a direct audio URL for a videoId, preferring AAC (itag 140)
 // then Opus (itag 251/250/249) — both decodable on-device.
 func (y *youtubeProvider) StreamURL(ctx context.Context, trackID string) (string, error) {
+	return y.streamURL(ctx, trackID, "")
+}
+
+// StreamURLFormat resolves preferring a specific format label (e.g. "OPUS 160") for the
+// tap-to-switch selector; falls back to the default preference if that format isn't
+// available. Implements the optional formatSelector capability (see provider.go).
+func (y *youtubeProvider) StreamURLFormat(ctx context.Context, trackID, prefFormat string) (string, error) {
+	return y.streamURL(ctx, trackID, prefFormat)
+}
+
+func (y *youtubeProvider) streamURL(ctx context.Context, trackID, prefFormat string) (string, error) {
 	if trackID == "" {
 		return "", fmt.Errorf("no track id")
 	}
@@ -226,105 +237,215 @@ func (y *youtubeProvider) StreamURL(ctx context.Context, trackID string) (string
 
 	var lastErr error
 	refreshedVD := false
-	for _, a := range attempts {
-		cl := a.cl
-	retry:
-		res, err := innertubePost(ctx, "www.youtube.com", "player", cl, map[string]interface{}{
-			"videoId": trackID, "contentCheckOk": true, "racyCheckOk": true,
-		}, a.bearer, vd)
-		if err != nil {
-			log.Printf("youtube player %s(%s): %v", cl.name, trackID, err)
-			lastErr = err
-			continue
-		}
-		// playability gate
-		if ps, ok := res["playabilityStatus"]; ok {
-			var st struct {
-				Status string `json:"status"`
-				Reason string `json:"reason"`
+	triedRefresh := false
+resolve:
+	for {
+		for _, a := range attempts {
+			cl := a.cl
+		retry:
+			res, err := innertubePost(ctx, "www.youtube.com", "player", cl, map[string]interface{}{
+				"videoId": trackID, "contentCheckOk": true, "racyCheckOk": true,
+			}, a.bearer, vd)
+			if err != nil {
+				log.Printf("youtube player %s(%s): %v", cl.name, trackID, err)
+				lastErr = err
+				continue
 			}
-			_ = json.Unmarshal(ps, &st)
-			if st.Status != "" && st.Status != "OK" {
-				// A bot/login gate usually means our visitor token went stale — mint a
-				// fresh one and retry this client ONCE before giving up on it.
-				if !refreshedVD && (st.Status == "LOGIN_REQUIRED" || strings.Contains(st.Reason, "bot")) {
-					refreshedVD = true
-					vd = ytVisitorData(ctx, true)
-					if vd != "" {
-						log.Printf("youtube player %s(%s): %s → retrying with fresh visitorData", cl.name, trackID, st.Status)
-						goto retry
+			// playability gate
+			if ps, ok := res["playabilityStatus"]; ok {
+				var st struct {
+					Status string `json:"status"`
+					Reason string `json:"reason"`
+				}
+				_ = json.Unmarshal(ps, &st)
+				if st.Status != "" && st.Status != "OK" {
+					// A bot/login gate usually means our visitor token went stale — mint a
+					// fresh one and retry this client ONCE before giving up on it.
+					if !refreshedVD && (st.Status == "LOGIN_REQUIRED" || strings.Contains(st.Reason, "bot")) {
+						refreshedVD = true
+						vd = ytVisitorData(ctx, true)
+						if vd != "" {
+							log.Printf("youtube player %s(%s): %s → retrying with fresh visitorData", cl.name, trackID, st.Status)
+							goto retry
+						}
+					}
+					lastErr = fmt.Errorf("%s: %s %s", cl.name, st.Status, st.Reason)
+					log.Printf("youtube player %s(%s): %v", cl.name, trackID, lastErr)
+					continue
+				}
+			}
+			sd, ok := res["streamingData"]
+			if !ok {
+				lastErr = fmt.Errorf("%s: no streamingData", cl.name)
+				continue
+			}
+			var streaming struct {
+				AdaptiveFormats []struct {
+					Itag            int    `json:"itag"`
+					URL             string `json:"url"`
+					MimeType        string `json:"mimeType"`
+					SignatureCipher string `json:"signatureCipher"`
+				} `json:"adaptiveFormats"`
+				HlsManifestURL  string `json:"hlsManifestUrl"`
+				DashManifestURL string `json:"dashManifestUrl"`
+			}
+			if json.Unmarshal(sd, &streaming) != nil {
+				continue
+			}
+			log.Printf("youtube player %s(%s): formats=%d hls=%v dash=%v", cl.name, trackID,
+				len(streaming.AdaptiveFormats), streaming.HlsManifestURL != "", streaming.DashManifestURL != "")
+			// Pick the best audio format (AAC 140, then Opus tiers, then any audio),
+			// taking either its direct URL or its ciphered form.
+			var directURL, cipher string
+			var pickedItag int
+			var pickedMime string
+			pick := func(itag int) bool {
+				for i := range streaming.AdaptiveFormats {
+					f := &streaming.AdaptiveFormats[i]
+					match := itag > 0 && f.Itag == itag
+					if itag == 0 {
+						match = strings.HasPrefix(f.MimeType, "audio/")
+					}
+					if match {
+						if f.URL != "" || f.SignatureCipher != "" {
+							pickedItag, pickedMime = f.Itag, f.MimeType
+						}
+						if f.URL != "" {
+							directURL = f.URL
+							return true
+						}
+						if f.SignatureCipher != "" {
+							cipher = f.SignatureCipher
+							return true
+						}
 					}
 				}
-				lastErr = fmt.Errorf("%s: %s %s", cl.name, st.Status, st.Reason)
+				return false
+			}
+			// Default preference AAC-then-Opus; if the user picked a format via the
+			// selector, move the itags matching that label to the front.
+			order := []int{140, 251, 250, 249, 0}
+			if prefFormat != "" {
+				var pref []int
+				for _, it := range []int{139, 140, 141, 249, 250, 251, 256, 258} {
+					if ytFmtLabel(it, "") == prefFormat {
+						pref = append(pref, it)
+					}
+				}
+				order = append(pref, order...)
+			}
+			for _, want := range order {
+				if pick(want) {
+					break
+				}
+			}
+			// Distinct audio-format labels available for this track — for the badge and
+			// (later) the tap-to-switch selector.
+			var avail []string
+			seenFmt := map[string]bool{}
+			for i := range streaming.AdaptiveFormats {
+				f := &streaming.AdaptiveFormats[i]
+				if strings.HasPrefix(f.MimeType, "audio/") {
+					if l := ytFmtLabel(f.Itag, f.MimeType); l != "" && !seenFmt[l] {
+						seenFmt[l] = true
+						avail = append(avail, l)
+					}
+				}
+			}
+			best := directURL
+			if best == "" && cipher != "" { // TVHTML5 gives ciphered URLs — descramble via base.js
+				if u, derr := decipherSignatureCipher(ctx, cipher); derr == nil {
+					best = u
+					log.Printf("youtube player %s(%s): resolved via decipher", cl.name, trackID)
+				} else {
+					log.Printf("youtube player %s(%s): decipher failed: %v", cl.name, trackID, derr)
+				}
+			}
+			if best != "" {
+				// The player API can say playabilityStatus:OK yet hand back a googlevideo
+				// CDN url that then 403s (bot-check / expired / throttled) — the app plays
+				// it, it fails instantly, and the track "skips". Verify the url is actually
+				// served before returning it; if not, fall through to the next client.
+				if ytProbePlayable(ctx, best) {
+					label := ytFmtLabel(pickedItag, pickedMime)
+					setNowPlaying(label, avail)
+					log.Printf("youtube player %s(%s): resolved audio url (verified) [%s]", cl.name, trackID, label)
+					return best, nil
+				}
+				lastErr = fmt.Errorf("%s: resolved url failed playability probe", cl.name)
 				log.Printf("youtube player %s(%s): %v", cl.name, trackID, lastErr)
 				continue
 			}
+			lastErr = fmt.Errorf("%s: no direct audio url (ciphered?)", cl.name)
+			log.Printf("youtube player %s(%s): %v", cl.name, trackID, lastErr)
 		}
-		sd, ok := res["streamingData"]
-		if !ok {
-			lastErr = fmt.Errorf("%s: no streamingData", cl.name)
-			continue
+		// AUTO-HEAL: a whole pass produced no *playable* url. Force-refresh the visitor
+		// session + cipher transforms ONCE and retry — this recovers the stale state that
+		// a process restart used to fix, without needing a restart.
+		if !triedRefresh {
+			triedRefresh = true
+			log.Printf("youtube %s: no playable url this pass — refreshing visitorData+cipher and retrying", trackID)
+			vd = ytVisitorData(ctx, true)
+			resetCipherCache()
+			continue resolve
 		}
-		var streaming struct {
-			AdaptiveFormats []struct {
-				Itag            int    `json:"itag"`
-				URL             string `json:"url"`
-				MimeType        string `json:"mimeType"`
-				SignatureCipher string `json:"signatureCipher"`
-			} `json:"adaptiveFormats"`
-			HlsManifestURL  string `json:"hlsManifestUrl"`
-			DashManifestURL string `json:"dashManifestUrl"`
-		}
-		if json.Unmarshal(sd, &streaming) != nil {
-			continue
-		}
-		log.Printf("youtube player %s(%s): formats=%d hls=%v dash=%v", cl.name, trackID,
-			len(streaming.AdaptiveFormats), streaming.HlsManifestURL != "", streaming.DashManifestURL != "")
-		// Pick the best audio format (AAC 140, then Opus tiers, then any audio),
-		// taking either its direct URL or its ciphered form.
-		var directURL, cipher string
-		pick := func(itag int) bool {
-			for i := range streaming.AdaptiveFormats {
-				f := &streaming.AdaptiveFormats[i]
-				match := itag > 0 && f.Itag == itag
-				if itag == 0 {
-					match = strings.HasPrefix(f.MimeType, "audio/")
-				}
-				if match {
-					if f.URL != "" {
-						directURL = f.URL
-						return true
-					}
-					if f.SignatureCipher != "" {
-						cipher = f.SignatureCipher
-						return true
-					}
-				}
-			}
-			return false
-		}
-		for _, want := range []int{140, 251, 250, 249, 0} {
-			if pick(want) {
-				break
-			}
-		}
-		best := directURL
-		if best == "" && cipher != "" { // TVHTML5 gives ciphered URLs — descramble via base.js
-			if u, derr := decipherSignatureCipher(ctx, cipher); derr == nil {
-				best = u
-				log.Printf("youtube player %s(%s): resolved via decipher", cl.name, trackID)
-			} else {
-				log.Printf("youtube player %s(%s): decipher failed: %v", cl.name, trackID, derr)
-			}
-		}
-		if best != "" {
-			log.Printf("youtube player %s(%s): resolved audio url", cl.name, trackID)
-			return best, nil
-		}
-		lastErr = fmt.Errorf("%s: no direct audio url (ciphered?)", cl.name)
-		log.Printf("youtube player %s(%s): %v", cl.name, trackID, lastErr)
+		break
 	}
 	return "", fmt.Errorf("youtube: could not resolve stream url: %v", lastErr)
+}
+
+// ytFmtLabel maps a YouTube audio itag / mimeType to a short quality badge string.
+func ytFmtLabel(itag int, mime string) string {
+	switch itag {
+	case 139:
+		return "AAC 48"
+	case 140:
+		return "AAC 128"
+	case 141:
+		return "AAC 256"
+	case 249:
+		return "OPUS 50"
+	case 250:
+		return "OPUS 70"
+	case 251:
+		return "OPUS 160"
+	case 256, 258:
+		return "AAC"
+	}
+	if strings.Contains(mime, "opus") || strings.Contains(mime, "webm") {
+		return "OPUS"
+	}
+	if strings.Contains(mime, "mp4") || strings.Contains(mime, "aac") || strings.Contains(mime, "mp4a") {
+		return "AAC"
+	}
+	return "AUDIO"
+}
+
+// ytProbePlayable does a tiny ranged GET to verify a resolved googlevideo URL is
+// actually served (2xx) rather than a 403 bot-check / expired / throttled response the
+// player API didn't surface. Cheap (one byte) and short-timeout so it can't stall track
+// start for long. Returns true only on 200/206.
+func ytProbePlayable(ctx context.Context, u string) bool {
+	cctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(cctx, "GET", u, nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Range", "bytes=0-1")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
+	resp, err := itHTTP.Do(req)
+	if err != nil {
+		log.Printf("youtube probe: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8))
+	if resp.StatusCode == 200 || resp.StatusCode == 206 {
+		return true
+	}
+	log.Printf("youtube probe: HTTP %d", resp.StatusCode)
+	return false
 }
 
 // Search queries YouTube (WEB client, video filter) and returns normalised tracks.

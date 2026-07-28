@@ -30,6 +30,15 @@ var (
 	cipherNSrc   string // goja source defining __n(a) ("" if extraction failed)
 )
 
+// resetCipherCache clears the cached sig/n transforms so the next resolve re-fetches
+// base.js from scratch. Called by the StreamURL auto-heal when a whole pass produced no
+// playable url (base.js may have rotated and the cached transforms gone stale).
+func resetCipherCache() {
+	cipherMu.Lock()
+	cipherPlayer, cipherSigSrc, cipherNSrc = "", "", ""
+	cipherMu.Unlock()
+}
+
 func httpGetString(ctx context.Context, u string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {

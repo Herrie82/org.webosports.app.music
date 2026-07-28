@@ -46,6 +46,11 @@ func playStreamURL(url string) error {
 
 	stream.killLocked()
 
+	// NOTE: an added `queue` + larger buffer-time (a BT-hiccup fix attempt) caused the live
+	// curl stream to EOS a few seconds in (track cut off ~5s). Reverted to the original
+	// pipeline: no queue — pulsesink applies realtime backpressure up through the pipe to
+	// curl, so playback stays at 1x and runs the full track. (Re-approach BT hiccups
+	// separately, verifying it doesn't break normal playback first.)
 	pipeline := "curl -sL --retry 2 '" + escapeSingle(url) + "' | " +
 		"gst-launch-0.10 fdsrc fd=0 ! decodebin ! audioconvert ! ffaudioresample ! " +
 		"audio/x-raw-int,rate=48000,channels=2,width=16,depth=16,signed=true,endianness=1234 ! " +

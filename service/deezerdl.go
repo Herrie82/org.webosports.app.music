@@ -223,7 +223,9 @@ func (d *deezerDL) FileURL(ctx context.Context, trackID string) (losslessFile, e
 }
 
 // deezerBlowfishKey derives the per-track Blowfish key:
-//   md5 = hex(md5(decimal track id)); key[i] = md5[i] ^ md5[i+16] ^ SECRET[i]
+//
+//	md5 = hex(md5(decimal track id)); key[i] = md5[i] ^ md5[i+16] ^ SECRET[i]
+//
 // (ASCII of the hex chars, i in 0..15), matching every Deezer client.
 func deezerBlowfishKey(trackID string) []byte {
 	sum := md5.Sum([]byte(trackID))

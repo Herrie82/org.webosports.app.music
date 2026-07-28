@@ -32,11 +32,11 @@ import (
 
 // LosslessDownloader is a first-party lossless service the user has an account with.
 type LosslessDownloader interface {
-	ID() string          // "qobuz" | "tidal" | "deezer"
-	Name() string        // display name
-	Available() bool     // credential file present + usable
+	ID() string                                                           // "qobuz" | "tidal" | "deezer"
+	Name() string                                                         // display name
+	Available() bool                                                      // credential file present + usable
 	Resolve(ctx context.Context, isrc string) (trackID string, err error) // ISRC -> service id ("" if none)
-	FileURL(ctx context.Context, trackID string) (losslessFile, error)     // real downloadable URL (+ decrypt info)
+	FileURL(ctx context.Context, trackID string) (losslessFile, error)    // real downloadable URL (+ decrypt info)
 }
 
 type losslessFile struct {

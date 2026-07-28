@@ -193,6 +193,10 @@ func handlePlayerStatus(w http.ResponseWriter, r *http.Request) {
 		out["uri"] = string(st.Item.URI)
 		out["duration_ms"] = int(st.Item.Duration)
 		out["state"] = "playing"
+		// librespot streams Ogg Vorbis at --bitrate 320 (see librespot.go), so Spotify's
+		// quality badge is constant.
+		out["format"] = "OGG 320"
+		out["formats"] = []string{"OGG 320"}
 	} else {
 		out["state"] = "idle"
 	}

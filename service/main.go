@@ -57,7 +57,7 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:8730", "listen address (localhost only)")
 	librespotName := flag.String("librespot-name", "webOS", "Connect device name to target for playback")
 	clientID := flag.String("client-id", "", "Spotify app client id (for the in-backend OAuth PKCE flow)")
-	clientIDFile := flag.String("client-id-file", spotifyDataDir + "/spotify-client-id", "file to read the client id from if -client-id is empty")
+	clientIDFile := flag.String("client-id-file", spotifyDataDir+"/spotify-client-id", "file to read the client id from if -client-id is empty")
 	redirect := flag.String("redirect", "http://127.0.0.1:8730/auth/callback", "OAuth redirect URL (must be registered on the Spotify app)")
 	tokenFile := flag.String("token-file", tokenPath, "where to persist the OAuth token (survives restarts)")
 	flag.Parse()
@@ -117,10 +117,11 @@ func main() {
 	mux.HandleFunc("/stream/resume", withCORS(handleStreamResume))
 	mux.HandleFunc("/stream/stop", withCORS(handleStreamStop))
 	mux.HandleFunc("/stream/status", withCORS(handleStreamStatus))
-	mux.HandleFunc("/dzstream", handleDzStream) // Deezer descrambling stream proxy (no CORS; gst/curl only)
-	mux.HandleFunc("/ytauth/start", withCORS(handleYtAuthStart))   // begin device-code login
-	mux.HandleFunc("/ytauth/poll", withCORS(handleYtAuthPoll))     // poll for authorisation
-	mux.HandleFunc("/ytauth/status", withCORS(handleYtAuthStatus)) // is YouTube signed in?
+	mux.HandleFunc("/stream/switchformat", withCORS(handleStreamSwitchFormat))
+	mux.HandleFunc("/dzstream", handleDzStream)                              // Deezer descrambling stream proxy (no CORS; gst/curl only)
+	mux.HandleFunc("/ytauth/start", withCORS(handleYtAuthStart))             // begin device-code login
+	mux.HandleFunc("/ytauth/poll", withCORS(handleYtAuthPoll))               // poll for authorisation
+	mux.HandleFunc("/ytauth/status", withCORS(handleYtAuthStatus))           // is YouTube signed in?
 	mux.HandleFunc("/tidalauth/start", withCORS(handleTidalAuthStart))       // Tidal PKCE: get authorize URL
 	mux.HandleFunc("/tidalauth/exchange", withCORS(handleTidalAuthExchange)) // exchange redirect ?code
 	mux.HandleFunc("/tidalauth/status", withCORS(handleTidalAuthStatus))     // is Tidal signed in?
@@ -130,9 +131,9 @@ func main() {
 	mux.HandleFunc("/appleauth/save", withCORS(handleAppleAuthSave))         // store the Music User Token
 	mux.HandleFunc("/appleauth/status", withCORS(handleAppleAuthStatus))     // is Apple Music signed in?
 	mux.HandleFunc("/appleauth/done", withCORS(handleAppleAuthDone))         // post-login landing page
-	mux.HandleFunc("/qobuzauth/login", withCORS(handleQobuzAuthLogin))   // Qobuz email+password
-	mux.HandleFunc("/dzauth/save", withCORS(handleDeezerAuthSave))       // Deezer ARL cookie (fallback)
-	mux.HandleFunc("/dzauth/login", withCORS(handleDeezerAuthLogin))     // Deezer email+password -> ARL
+	mux.HandleFunc("/qobuzauth/login", withCORS(handleQobuzAuthLogin))       // Qobuz email+password
+	mux.HandleFunc("/dzauth/save", withCORS(handleDeezerAuthSave))           // Deezer ARL cookie (fallback)
+	mux.HandleFunc("/dzauth/login", withCORS(handleDeezerAuthLogin))         // Deezer email+password -> ARL
 	mux.HandleFunc("/auth/login", withCORS(handleAuthLogin))
 	mux.HandleFunc("/auth/callback", handleAuthCallback) // browser redirect target (no CORS)
 	mux.HandleFunc("/auth/status", withCORS(handleAuthStatus))

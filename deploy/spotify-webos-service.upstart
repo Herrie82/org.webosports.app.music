@@ -13,4 +13,9 @@ respawn
 # unmount ("USB drive Connection failed"). cryptofs is only suspended (not unmounted)
 # for MSM and persists across reboots. It reads the client id from
 # /media/cryptofs/spotify-webos/spotify-client-id (see -client-id-file).
+#
+# Use a DIRECT exec (no `sh -c '... >> log'`): wrapping in a shell for stdout redirection
+# confused upstart's process tracking, orphaning instances that fought over :8730 (respawn
+# storm) and killed the playback pipeline. If backend logging is needed, add a -logfile flag
+# in the backend itself rather than a shell redirect here.
 exec /media/cryptofs/spotify-webos/spotify-webos-service -addr 127.0.0.1:8730
