@@ -26,6 +26,12 @@ func (s *spotifyProvider) Search(ctx context.Context, query string, limit int) (
 	if query == "" {
 		return []providerTrack{}, nil
 	}
+	// This app's Spotify token rejects search limits above searchLimitMax with
+	// "Invalid limit" (surfaces as a 502). The connector bar asks for 40, so clamp
+	// here just like handleSearch does.
+	if limit > searchLimitMax {
+		limit = searchLimitMax
+	}
 	res, err := c.Search(ctx, query, spotify.SearchTypeTrack, spotify.Limit(limit))
 	if err != nil {
 		return nil, err
