@@ -21,12 +21,12 @@ enyo.kind({
 	components: [
 		{name: "grp", kind: "RowGroup", className: "accounts-group", components: [
 			{name: "list", kind: "VirtualRepeater", className: "accounts-rowgroup-item", onSetupRow: "setupRow", onclick: "rowTapped", components: [
-				{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "center", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", components: [
+				{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "center", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", style: "padding-top:5px; padding-bottom:5px;", components: [
 					{kind: "Image", name: "icon", className: "icon-image"},
 					{kind: "HFlexBox", style: "width:420px", align: "center", components: [
 						{kind: "VFlexBox", align: "start", components: [
 							{name: "nm"},
-							{name: "sub", style: "font-size:11px; color:#8a8a8a; margin-top:1px;"}
+							{name: "sub", style: "font-size:11px; color:#8a8a8a; line-height:13px;"}
 						]}
 					]}
 				]}
