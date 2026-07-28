@@ -102,6 +102,9 @@ func main() {
 	if td.Available() {
 		registerProvider(&tidalProvider{dl: td})
 	}
+	if (&appleProvider{}).Available() {
+		registerProvider(&appleProvider{})
+	}
 
 	restoreSession() // reload a persisted token, if any, so login survives restarts
 	loadYtToken()    // reload a persisted YouTube OAuth token, if any
@@ -122,6 +125,11 @@ func main() {
 	mux.HandleFunc("/tidalauth/exchange", withCORS(handleTidalAuthExchange)) // exchange redirect ?code
 	mux.HandleFunc("/tidalauth/status", withCORS(handleTidalAuthStatus))     // is Tidal signed in?
 	mux.HandleFunc("/tidalstream", handleTidalStream)                        // DASH/BTS reassembly proxy (gst/curl)
+	mux.HandleFunc("/applestream", handleAppleStream)                        // Apple Music Widevine decrypt proxy
+	mux.HandleFunc("/appleauth/login", withCORS(handleAppleAuthLogin))       // MusicKit sign-in page
+	mux.HandleFunc("/appleauth/save", withCORS(handleAppleAuthSave))         // store the Music User Token
+	mux.HandleFunc("/appleauth/status", withCORS(handleAppleAuthStatus))     // is Apple Music signed in?
+	mux.HandleFunc("/appleauth/done", withCORS(handleAppleAuthDone))         // post-login landing page
 	mux.HandleFunc("/qobuzauth/login", withCORS(handleQobuzAuthLogin))   // Qobuz email+password
 	mux.HandleFunc("/dzauth/save", withCORS(handleDeezerAuthSave))       // Deezer ARL cookie (fallback)
 	mux.HandleFunc("/dzauth/login", withCORS(handleDeezerAuthLogin))     // Deezer email+password -> ARL

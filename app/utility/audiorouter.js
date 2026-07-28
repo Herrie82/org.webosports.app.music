@@ -47,7 +47,7 @@ enyo.kind({
 
 	// stream-URL connectors routed to kindStreamManager (Spotify -> librespot; a local
 	// file path -> kindAudioManager).
-	_streamRe: /^(youtube|soundcloud|deezer|jamendo|archive|qobuz|tidal):/,
+	_streamRe: /^(youtube|soundcloud|deezer|jamendo|archive|qobuz|tidal|apple):/,
 
 	_active: null, // reference to whichever backend is currently in charge
 

@@ -57,6 +57,11 @@ func refreshFirstPartyServices() {
 	if td.Available() {
 		providers["tidal"] = &tidalProvider{dl: td}
 	}
+	if (&appleProvider{}).Available() {
+		providers["apple"] = &appleProvider{}
+	} else {
+		delete(providers, "apple")
+	}
 	// Rebuild the lossless downloader list from the three first-party services.
 	downloaders = downloaders[:0]
 	for _, d := range []LosslessDownloader{qz, td, dz} {
