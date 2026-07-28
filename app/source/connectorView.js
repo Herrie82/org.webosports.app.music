@@ -80,7 +80,12 @@ enyo.kind({
 		var m = { youtube: "YouTube", archive: "Archive" };
 		return m[p.id] || p.name || p.id;
 	},
+	// Re-fetch /providers so newly-added accounts (e.g. Qobuz/Tidal added while the
+	// app was open) show up. Called when the Connectors view is navigated to.
+	refreshProviders: function () { this.loadProviders(); },
+
 	buildTabs: function (providers) {
+		var prevProvider = this._provider; // preserve the selected tab across a rebuild
 		var kids = this.$.tabs.getControls ? this.$.tabs.getControls() : this.$.tabs.children;
 		for (var k = kids.length - 1; k >= 0; k--) { if (kids[k] && kids[k].destroy) { kids[k].destroy(); } }
 		// Include Spotify too (unified UI). Its tracks play via librespot rather than
@@ -99,8 +104,11 @@ enyo.kind({
 			}, { owner: this });
 		}, this);
 		this.$.tabs.render();
-		this.$.tabs.setValue(0);
-		this._setProvider(list[0].id, list[0].name || list[0].id);
+		// Restore the previously-selected provider if it's still present, else the first.
+		var idx = 0;
+		for (var s = 0; s < list.length; s++) { if (list[s].id === prevProvider) { idx = s; break; } }
+		this.$.tabs.setValue(idx);
+		this._setProvider(list[idx].id, list[idx].name || list[idx].id);
 	},
 	// Fired when a tab is tapped; inValue is the selected tab's value (its index).
 	onTabChange: function (inSender, inValue) {

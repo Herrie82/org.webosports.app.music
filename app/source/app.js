@@ -1555,6 +1555,10 @@ enyo.kind({
 		// local media-DB list plumbing.
 		if (strListViewType === "Spotify" || strListViewType === "Connectors" || strListViewType === "AutoList" || strListViewType === "FlyList")
 		{
+			// Re-fetch connectors so accounts added while the app was open (Qobuz/Tidal/…) appear.
+			if (strListViewType === "Connectors" && this.$.listViewConnectors && this.$.listViewConnectors.refreshProviders) {
+				this.$.listViewConnectors.refreshProviders();
+			}
 			return;
 		}
 

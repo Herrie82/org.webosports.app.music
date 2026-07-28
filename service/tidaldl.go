@@ -21,10 +21,13 @@ import (
 // device login (see report). The access token is refreshed against
 // auth.tidal.com on 401 and the new token persisted back to that file.
 //
-// client_id/secret are the long-standing tidalapi "TV"/device credentials.
+// client_id/secret: the tidal-dl "HiFi" client. The tidalapi "TV"/Automotive client
+// (zU4XHVVkc2tDPo4t) supports the device flow but Tidal classifies it as an Automotive
+// client that is NOT entitled to stream — playbackinfopostpaywall returns 401/subStatus
+// 4005 "Asset is not ready for playback" for every track. This client streams HiFi.
 const (
-	tidalClientID     = "zU4XHVVkc2tDPo4t"
-	tidalClientSecret = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4="
+	tidalClientID     = "7m7Ap0JC9j1cOM3n"
+	tidalClientSecret = "vRAdA108tlvkJpTsGZS8rGZ7xTlbJ0qaZ2K9saEzsgY="
 	tidalTokenFile    = "/media/internal/tidal-token"
 	tidalAPIBase      = "https://api.tidal.com/v1"
 	tidalAuthTokenURL = "https://auth.tidal.com/v1/oauth2/token"
