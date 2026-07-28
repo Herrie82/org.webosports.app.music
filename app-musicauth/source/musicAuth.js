@@ -24,6 +24,25 @@ function mlog(s) {
 	try { console.log("MUSICAUTH: " + s); } catch (e2) {}
 }
 
+// Route enyo.BasicWebView to the Atlas/WPE engine (once, at load) — the same patch
+// spotifyView.js uses so the embedded WebView actually renders on this device.
+(function () {
+	function patch() {
+		if (!(window.enyo && enyo.BasicWebView && enyo.BasicWebView.prototype)) { return false; }
+		if (enyo.BasicWebView.prototype.__atlasPatched) { return true; }
+		enyo.BasicWebView.prototype.__atlasPatched = true;
+		var origCreate = enyo.BasicWebView.prototype.create;
+		enyo.BasicWebView.prototype.create = function () {
+			origCreate.apply(this, arguments);
+			this.domAttributes.type = "application/x-atlas-browser";
+		};
+		return true;
+	}
+	if (!patch() && window.enyo) {
+		var t = window.setInterval(function () { if (patch()) { window.clearInterval(t); } }, 50);
+	}
+})();
+
 enyo.kind({
 	name: "MusicAuth",
 	kind: enyo.VFlexBox,
@@ -75,7 +94,7 @@ enyo.kind({
 			]},
 
 			// Spotify OAuth web view (hidden until needed)
-			{ name: "web", kind: "enyo.BasicWebView", showing: false, flex: 1, mimeType: "application/x-atlas-browser", onLoadURL: "onWebLoad" }
+			{ name: "oauthBox", flex: 1, showing: false }
 		]},
 
 		{ kind: "Toolbar", className: "enyo-toolbar-light", components: [
@@ -249,21 +268,14 @@ enyo.kind({
 			}
 			this._tidalExchanging = false;
 			this.$.codeBox.setShowing(false);
-			try {
-				this.$.web.setShowing(true);
-				this.$.web.setUrl("atlas-simple:" + j.authorize_url);
-				this.$.web.render();
-			} catch (e) {
-				this.$.codeBox.setShowing(true);
-				this.$.codeStatus.setContent("Web view error: " + e);
-			}
+			this.openWeb(j.authorize_url);
 		}));
 	},
 	// Called from onWebLoad when the login redirects to tidal.com/login/auth?code=…
 	exchangeTidal: function (code) {
 		if (this._tidalExchanging) { return; }
 		this._tidalExchanging = true;
-		this.$.web.setShowing(false);
+		this.teardownWeb();
 		this.$.codeBox.setShowing(true);
 		this.$.codeWrap.setShowing(false);
 		this.$.codeStatus.setContent("Signing in to Tidal…");
@@ -292,16 +304,7 @@ enyo.kind({
 				return;
 			}
 			this.$.codeBox.setShowing(false);
-			try {
-				this.$.web.setShowing(true);
-				this.$.web.setUrl("atlas-simple:" + BACKEND + "/appleauth/login");
-				this.$.web.render();
-			} catch (e) {
-				this.$.codeBox.setShowing(true);
-				this.$.codeStatus.setContent("Web view error: " + e);
-				this.$.codeRetry.setShowing(true);
-				return;
-			}
+			this.openWeb(BACKEND + "/appleauth/login");
 			this.startPollFn("applePollOnce", 2000);
 		}));
 	},
@@ -309,7 +312,7 @@ enyo.kind({
 		this.get(BACKEND + "/appleauth/status", enyo.bind(this, function (ok, j) {
 			if (ok && j && j.authenticated) {
 				this.stopPoll();
-				this.$.web.setShowing(false);
+				this.teardownWeb();
 				this.$.codeBox.setShowing(true);
 				this.$.codeStatus.setContent("Apple Music connected!");
 				this.finishService("Apple Music");
@@ -327,10 +330,49 @@ enyo.kind({
 	},
 	startLogin: function () {
 		this.busy(true);
-		try { this.$.web.setShowing(true); this.$.web.setUrl("atlas-simple:" + BACKEND + "/login"); this.$.web.render(); } catch (e) {}
+		this.openWeb(BACKEND + "/login");
 		this.startPollFn("spotifyPollOnce", 2000);
 	},
 	spotifyPollOnce: function () { this.attemptFinish(false); },
+
+	// --- embedded Atlas/WPE WebView (same lifecycle as spotifyView.js) ---
+	openWeb: function (url) {
+		this._webUrl = url;
+		this._webLoaded = false;
+		this.$.oauthBox.setShowing(true);
+		if (!this.$.oauthWeb) {
+			this.$.oauthBox.createComponent({
+				name: "oauthWeb", kind: "WebView", width: "100%", height: "560px",
+				url: "atlas-simple:about:blank",
+				onConnected: "webConnected", onError: "webError",
+				onUrlRedirected: "webNav", onPageTitleChanged: "webTitleNav"
+			}, { owner: this });
+			this.$.oauthBox.render();
+		} else {
+			this.webConnected();
+		}
+		// onConnected is unreliable on enyo 0.10 — fall back to openURL after 3s.
+		if (this._webTimer) { window.clearTimeout(this._webTimer); }
+		var self = this;
+		this._webTimer = window.setTimeout(function () { self.webConnected(); }, 3000);
+	},
+	webConnected: function () {
+		if (this._webLoaded || !this._webUrl || !this.$.oauthWeb) { return; }
+		this._webLoaded = true;
+		if (this._webTimer) { window.clearTimeout(this._webTimer); this._webTimer = null; }
+		mlog("openURL atlas-simple:" + this._webUrl);
+		try { this.$.oauthWeb.callBrowserAdapter("openURL", ["atlas-simple:" + this._webUrl]); }
+		catch (e) { this._webLoaded = false; mlog("openURL failed: " + e); }
+	},
+	webNav: function (s, u) { this.onWebLoad(s, u); },
+	webTitleNav: function (s, t, u) { this.onWebLoad(s, u); },
+	webError: function () { mlog("webview engine error"); },
+	teardownWeb: function () {
+		if (this._webTimer) { window.clearTimeout(this._webTimer); this._webTimer = null; }
+		this.$.oauthBox.setShowing(false);
+		if (this.$.oauthWeb) { this.$.oauthWeb.destroy(); this._webLoaded = false; }
+	},
+
 	onWebLoad: function (s, u) {
 		if (u && u.indexOf("/auth/callback") !== -1) { this.$.codeStatus.setContent("Finishing…"); }
 		// Tidal PKCE: the login redirects to tidal.com/login/auth?code=… — grab the code.
