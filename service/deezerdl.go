@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -232,6 +233,106 @@ func deezerBlowfishKey(trackID string) []byte {
 		key[i] = h[i] ^ h[i+16] ^ deezerBFSecret[i]
 	}
 	return key
+}
+
+// deezerLoginGetArl logs in to Deezer with email + password (the web gw-light flow)
+// and returns the account's ARL cookie + display name — so the user signs in normally
+// instead of hand-copying a cookie. Best-effort: Deezer sometimes gates the web login
+// behind a captcha; on failure the caller falls back to asking for the ARL directly.
+func deezerLoginGetArl(ctx context.Context, email, password string) (arl, name string, err error) {
+	jar, _ := cookiejar.New(nil)
+	hc := &http.Client{Jar: jar, Timeout: 25 * time.Second}
+	// gw-light call returning the raw `results` payload (getArl returns a bare string,
+	// getUserData returns an object, so we decode per-call).
+	gw := func(method, apiToken string, payload interface{}) (json.RawMessage, error) {
+		q := url.Values{}
+		q.Set("method", method)
+		q.Set("api_version", "1.0")
+		q.Set("api_token", apiToken)
+		q.Set("input", "3")
+		body, _ := json.Marshal(payload)
+		req, e := http.NewRequestWithContext(ctx, http.MethodPost,
+			"https://www.deezer.com/ajax/gw-light.php?"+q.Encode(), bytes.NewReader(body))
+		if e != nil {
+			return nil, e
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Mozilla/5.0")
+		resp, e := hc.Do(req)
+		if e != nil {
+			return nil, e
+		}
+		defer resp.Body.Close()
+		var out struct {
+			Error   json.RawMessage `json:"error"`
+			Results json.RawMessage `json:"results"`
+		}
+		if e := json.NewDecoder(resp.Body).Decode(&out); e != nil {
+			return nil, e
+		}
+		if es := strings.TrimSpace(string(out.Error)); es != "" && es != "[]" && es != "{}" && es != "null" {
+			return nil, fmt.Errorf("deezer %s: %s", method, es)
+		}
+		return out.Results, nil
+	}
+	// 1. bootstrap: obtain the login CSRF token + sid cookie.
+	raw, err := gw("deezer.getUserData", "", map[string]interface{}{})
+	if err != nil {
+		return "", "", err
+	}
+	var ud1 map[string]interface{}
+	_ = json.Unmarshal(raw, &ud1)
+	token := asString(ud1["checkFormLogin"])
+	if token == "" {
+		return "", "", fmt.Errorf("deezer: no login token")
+	}
+	// 2. POST the login form.
+	form := url.Values{}
+	form.Set("type", "login")
+	form.Set("mail", email)
+	form.Set("password", password)
+	form.Set("checkFormLogin", token)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"https://www.deezer.com/ajax/action.php", strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	resp, err := hc.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if strings.Contains(strings.ToLower(string(b)), "captcha") {
+		return "", "", fmt.Errorf("Deezer wants a captcha for this login — paste your ARL instead")
+	}
+	// 3. confirm we're logged in, then pull the ARL.
+	raw2, err := gw("deezer.getUserData", "", map[string]interface{}{})
+	if err != nil {
+		return "", "", err
+	}
+	var ud2 map[string]interface{}
+	_ = json.Unmarshal(raw2, &ud2)
+	user, _ := ud2["USER"].(map[string]interface{})
+	if user == nil || asFloat(user["USER_ID"]) == 0 {
+		return "", "", fmt.Errorf("Deezer login failed — check your email/password (or paste your ARL)")
+	}
+	name = asString(user["BLOG_NAME"])
+	if name == "" {
+		name = asString(user["FIRSTNAME"])
+	}
+	arlRaw, err := gw("user.getArl", asString(ud2["checkForm"]), map[string]interface{}{})
+	if err != nil {
+		return "", "", err
+	}
+	_ = json.Unmarshal(arlRaw, &arl) // user.getArl -> results is the bare ARL string
+	arl = strings.Trim(arl, "\" \n\r\t")
+	if arl == "" {
+		return "", "", fmt.Errorf("Deezer: logged in but no ARL returned")
+	}
+	return arl, name, nil
 }
 
 func asString(v interface{}) string {

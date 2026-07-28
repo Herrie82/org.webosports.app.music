@@ -65,6 +65,37 @@ func (t *tidalDL) ID() string      { return "tidal" }
 func (t *tidalDL) Name() string    { return "Tidal" }
 func (t *tidalDL) Available() bool { return t.ok }
 
+// fetchUsername returns the account's Tidal username (or nickname/email/first name),
+// so the created account is labelled with the real user rather than "Tidal". Best-effort.
+func (t *tidalDL) fetchUsername(ctx context.Context) string {
+	t.mu.Lock()
+	uid := t.tok.UserID
+	t.mu.Unlock()
+	if uid == 0 {
+		return ""
+	}
+	u := fmt.Sprintf("%s/users/%d?countryCode=%s", tidalAPIBase, uid, url.QueryEscape(t.countryCode()))
+	body, err := t.authGet(ctx, u)
+	if err != nil {
+		return ""
+	}
+	var r struct {
+		Username  string `json:"username"`
+		Nickname  string `json:"nickname"`
+		Email     string `json:"email"`
+		FirstName string `json:"firstName"`
+	}
+	if json.Unmarshal(body, &r) != nil {
+		return ""
+	}
+	for _, s := range []string{r.Username, r.Nickname, r.Email, r.FirstName} {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
 func (t *tidalDL) countryCode() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()

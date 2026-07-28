@@ -129,6 +129,47 @@ func handleDeezerAuthSave(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "username": "Deezer"})
 }
 
+// POST /dzauth/login {email, password} — sign in to Deezer and pull the ARL
+// automatically (no cookie copying). Falls back to /dzauth/save on the client if
+// Deezer blocks the login with a captcha.
+func handleDeezerAuthLogin(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		httpErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	email := strings.TrimSpace(body.Email)
+	pw := strings.TrimSpace(body.Password)
+	if email == "" || pw == "" {
+		httpErr(w, http.StatusBadRequest, "email and password required")
+		return
+	}
+	arl, name, err := deezerLoginGetArl(r.Context(), email, pw)
+	if err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	if err := os.WriteFile(deezerArlFile, []byte(arl), 0600); err != nil {
+		httpErr(w, http.StatusInternalServerError, "write cred: "+err.Error())
+		return
+	}
+	// Validate the pulled ARL end-to-end before registering.
+	d := newDeezerDL()
+	if err := d.auth(r.Context()); err != nil {
+		_ = os.Remove(deezerArlFile)
+		httpErr(w, http.StatusBadGateway, "deezer ARL invalid: "+err.Error())
+		return
+	}
+	refreshFirstPartyServices()
+	if name == "" {
+		name = email
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "username": name})
+}
+
 // --- Tidal: OAuth device-code flow (mirrors ytauth.go) -----------------------
 
 var (
@@ -193,13 +234,14 @@ func tidalStartDeviceAuth(ctx context.Context) (map[string]interface{}, error) {
 	}, nil
 }
 
-// tidalPollDeviceAuth polls once; returns "pending" | "ok" | "error".
-func tidalPollDeviceAuth(ctx context.Context) (string, error) {
+// tidalPollDeviceAuth polls once; returns "pending" | "ok" | "error" plus the Tidal
+// username on success (so the account is labelled with the real user, not "Tidal").
+func tidalPollDeviceAuth(ctx context.Context) (string, string, error) {
 	tidalDeviceMu.Lock()
 	dc := tidalDevicePnd.deviceCode
 	tidalDeviceMu.Unlock()
 	if dc == "" {
-		return "error", fmt.Errorf("no pending auth; call /tidalauth/start first")
+		return "error", "", fmt.Errorf("no pending auth; call /tidalauth/start first")
 	}
 	form := url.Values{}
 	form.Set("client_id", tidalClientID)
@@ -209,12 +251,12 @@ func tidalPollDeviceAuth(ctx context.Context) (string, error) {
 	form.Set("scope", tidalScope)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tidalAuthTokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
-		return "pending", err
+		return "pending", "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "pending", err
+		return "pending", "", err
 	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
@@ -246,26 +288,27 @@ func tidalPollDeviceAuth(ctx context.Context) (string, error) {
 		}
 		bb, err := json.MarshalIndent(tok, "", "  ")
 		if err != nil {
-			return "error", err
+			return "error", "", err
 		}
 		if err := os.WriteFile(tidalTokenFile, bb, 0600); err != nil {
-			return "error", err
+			return "error", "", err
 		}
 		tidalDeviceMu.Lock()
 		tidalDevicePnd.deviceCode = ""
 		tidalDeviceMu.Unlock()
 		refreshFirstPartyServices()
-		return "ok", nil
+		uname := newTidalDL().fetchUsername(ctx)
+		return "ok", uname, nil
 	}
 	// Tidal returns HTTP 400 {"error":"authorization_pending"} while the user hasn't
 	// approved yet (and "slow_down" if we poll too fast).
 	if strings.Contains(rr.Error, "authorization_pending") || strings.Contains(rr.Error, "slow_down") {
-		return "pending", nil
+		return "pending", "", nil
 	}
 	if rr.Error == "" {
-		return "pending", nil // treat an unexpected empty body as still-pending
+		return "pending", "", nil // treat an unexpected empty body as still-pending
 	}
-	return "error", fmt.Errorf("%s", rr.Error)
+	return "error", "", fmt.Errorf("%s", rr.Error)
 }
 
 func handleTidalAuthStart(w http.ResponseWriter, r *http.Request) {
@@ -278,8 +321,11 @@ func handleTidalAuthStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleTidalAuthPoll(w http.ResponseWriter, r *http.Request) {
-	status, err := tidalPollDeviceAuth(r.Context())
+	status, username, err := tidalPollDeviceAuth(r.Context())
 	out := map[string]interface{}{"status": status}
+	if username != "" {
+		out["username"] = username
+	}
 	if err != nil && status != "pending" {
 		out["error"] = err.Error()
 	}

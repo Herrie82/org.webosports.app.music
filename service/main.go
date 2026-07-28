@@ -121,7 +121,8 @@ func main() {
 	mux.HandleFunc("/tidalauth/poll", withCORS(handleTidalAuthPoll))     // poll for authorisation
 	mux.HandleFunc("/tidalauth/status", withCORS(handleTidalAuthStatus)) // is Tidal signed in?
 	mux.HandleFunc("/qobuzauth/login", withCORS(handleQobuzAuthLogin))   // Qobuz email+password
-	mux.HandleFunc("/dzauth/save", withCORS(handleDeezerAuthSave))       // Deezer ARL cookie
+	mux.HandleFunc("/dzauth/save", withCORS(handleDeezerAuthSave))       // Deezer ARL cookie (fallback)
+	mux.HandleFunc("/dzauth/login", withCORS(handleDeezerAuthLogin))     // Deezer email+password -> ARL
 	mux.HandleFunc("/auth/login", withCORS(handleAuthLogin))
 	mux.HandleFunc("/auth/callback", handleAuthCallback) // browser redirect target (no CORS)
 	mux.HandleFunc("/auth/status", withCORS(handleAuthStatus))
