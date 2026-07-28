@@ -107,9 +107,10 @@ enyo.kind({
 		{className:"accounts-header-shadow"},
 		{kind: "Scroller", flex: 1, components: [
 			{kind:"Control", className:"box-center", components: [
-				{kind: "Control", style:"padding:6px 0 8px 0;", components: [		// #4 search box (centered to group width)
-					{name: "search", kind: "Input", hint: $L("Search accounts"), onkeyup: "searchKey",
-						style:"width:100%; -webkit-box-sizing:border-box; box-sizing:border-box; height:38px; padding:0 12px; border:1px solid #b6b6b6; border-radius:9px; background:#fff; font-size:15px;"}
+				{kind: "Control", style:"padding:8px 2px 6px 2px;", components: [		// #4 native rounded search (like the timezone search)
+					{name: "search", kind: "RoundedSearchInput", hint: $L("Search accounts"),
+						autocorrect: false, spellcheck: false, autoCapitalize: "lowercase",
+						onchange: "searchKey", onCancel: "searchKey"}
 				]},
 				{name: "groups"},
 				{name: "noResults", content: $L("No matching accounts"), showing:false, style:"text-align:center; color:#999; padding:24px;"}
