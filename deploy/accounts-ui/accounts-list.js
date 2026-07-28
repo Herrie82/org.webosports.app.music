@@ -21,7 +21,10 @@ enyo.kind({
 		// grouped: ONE box, categories are sub-headers inside it
 		{name: "synergyBox", kind: "RowGroup", className: "accounts-group", showing: false, components: [
 			{name: "groupedList", kind: "VirtualRepeater", className: "accounts-rowgroup-item", onSetupRow: "groupedGetItem", onclick: "groupedTapped", components: [
-				{name: "catHeader", showing: false, className: "enyo-group-label"},		// same style as the RowGroup caption ("SYNERGY ACCOUNTS")
+				// Static grey caption bar matching the RowGroup header ("SYNERGY ACCOUNTS"): white
+				// uppercase bold text on a grey gradient. (enyo-group-label itself can't be reused —
+				// it's absolutely positioned with a negative margin to overlay the group's top.)
+				{name: "catHeader", showing: false, style: "margin:0 -10px; padding:5px 0 5px 12px; background:#8c8c8c; background:-webkit-linear-gradient(top,#9d9d9d,#7d7d7d); background:linear-gradient(#9d9d9d,#7d7d7d); color:#fff; text-shadow:0 1px 0 #5f5f5f; font-weight:bold; font-size:11px; text-transform:uppercase; letter-spacing:0.03em;"},
 				{kind: "Item", name: "Account", layoutKind: "HFlexLayout", align: "start", tapHighlight: true, className: "accounts-list-item enyo-text-ellipsis", style: "padding-top:6px; padding-bottom:6px;", components: [
 					{kind: "Image", name: "accountIcon", className: "icon-image"},
 					{kind: "VFlexBox", align: "start", components: [
