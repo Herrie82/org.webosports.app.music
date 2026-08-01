@@ -51,7 +51,13 @@ enyo.kind({
 	components: [
 		{ kind: "Toolbar", className: "enyo-toolbar-light accounts-header", pack: "center", components: [
 			{ name: "headerIcon", kind: "Image", style: "width:32px; height:32px; vertical-align:middle; margin-right:6px;" },
-			{ kind: "Control", name: "title", content: "Sign In" }
+			{ kind: "Control", name: "title", content: "Sign In" },
+			// Manual VKB toggle. Embedded sign-in webviews that render the form in a cross-origin
+			// iframe (Apple MusicKit) do not auto-raise the keyboard. Tap the field, then tap this to
+			// force the VKB. A plain Control (not Button) so tapping it does NOT steal focus from the
+			// webview input, so the typed keys still reach the focused field.
+			{ name: "kbButton", kind: "Control", showing: false, content: "\u2328 Keyboard", onclick: "toggleKeyboard",
+			  style: "margin-left:14px; padding:3px 10px; border:1px solid #888; border-radius:6px; font-size:14px; -webkit-user-select:none;" }
 		]},
 		{ className: "accounts-header-shadow" },
 
@@ -337,6 +343,7 @@ enyo.kind({
 
 	// --- embedded Atlas/WPE WebView (same lifecycle as spotifyView.js) ---
 	openWeb: function (url) {
+		if (this.$.kbButton) { this.$.kbButton.setShowing(true); }
 		this._webUrl = url;
 		this._webLoaded = false;
 		this.$.oauthBox.setShowing(true);
@@ -367,8 +374,22 @@ enyo.kind({
 	webNav: function (s, u) { this.onWebLoad(s, u); },
 	webTitleNav: function (s, t, u) { this.onWebLoad(s, u); },
 	webError: function () { mlog("webview engine error"); },
+	// Force-toggle the virtual keyboard for the embedded sign-in webview (see kbButton).
+	// setManualKeyboardEnabled(true) is required before keyboardShow/Hide take effect.
+	toggleKeyboard: function () {
+		if (!window.PalmSystem) { return true; }
+		try {
+			PalmSystem.setManualKeyboardEnabled(true);
+			if (this._kbShown) { PalmSystem.keyboardHide(); this._kbShown = false; }
+			else { PalmSystem.keyboardShow(0); this._kbShown = true; }
+		} catch (e) {}
+		return true; // do not bubble / take focus
+	},
 	teardownWeb: function () {
 		if (this._webTimer) { window.clearTimeout(this._webTimer); this._webTimer = null; }
+		if (this.$.kbButton) { this.$.kbButton.setShowing(false); }
+		try { if (window.PalmSystem) { PalmSystem.keyboardHide(); PalmSystem.setManualKeyboardEnabled(false); } } catch (e) {}
+		this._kbShown = false;
 		this.$.oauthBox.setShowing(false);
 		if (this.$.oauthWeb) { this.$.oauthWeb.destroy(); this._webLoaded = false; }
 	},
