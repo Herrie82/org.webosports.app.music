@@ -27,7 +27,7 @@ ACCOUNT_JSON="$ACCOUNT_DIR/$PKG_ID.json"
 LOC_NAME="$(sed -n 's/.*"loc_name"[^"]*"\([^"]*\)".*/\1/p' "$ACCOUNT_JSON" | head -1)"
 [ -n "$LOC_NAME" ] || LOC_NAME="$PROVIDER"
 
-VER="${VER:-0.9.0}"
+VER="${VER:-0.9.2}"
 OUT="$ROOT/build-output"
 PKG="${PKG_ID}_${VER}_all.ipk"
 STAGE="$(mktemp -d)"
@@ -58,8 +58,7 @@ Priority: optional
 Architecture: all
 Installed-Size: $KB
 Maintainer: Herman van Hazendonk <github.com@herrie.org>
-Depends: org.webosports.app.music
-Description: $LOC_NAME Synergy connector — adds a "$LOC_NAME" account type. Requires org.webosports.app.music (base package: validator app + backend + LS2 role) already installed. Install via Preware / WebOS Quick Install so the postinst runs as root.
+Description: $LOC_NAME Synergy connector — adds a "$LOC_NAME" account type. Requires org.webosports.app.music (base package: validator app + backend + LS2 role) already installed — install that first; not expressed as a package Depends: because webOS ipkg/Preware doesn't reliably resolve deps against side-loaded ipks. Install via Preware / WebOS Quick Install so the postinst runs as root.
 webOS-Package-Format-Version: 2
 EOF
 
@@ -79,7 +78,16 @@ cp -a "\$PAYLOAD/accounts/." "\$ACCTS/"
 sync
 mount -o remount,ro / 2>/dev/null || true
 
+# Dropping the template file isn't enough — the Accounts service caches its template
+# list and only re-scans on these triggers (see deploy/ondevice-install-accounts.sh,
+# already proven on-device). Without this, the new type stays invisible even after a
+# reboot if the service doesn't happen to re-scan the directory on every boot.
 ls-control scan-services 2>/dev/null || true
+for svc in com.palm.service.accounts com.palm.service.accounts.mojoservice; do
+    luna-send -n 1 -a install "palm://com.palm.service.bus/signal/registerServerStatus" "{\"serviceName\":\"\$svc\"}" >/dev/null 2>&1 || true
+done
+initctl stop LunaSysService 2>/dev/null || true; sleep 1; initctl start LunaSysService 2>/dev/null || true
+
 echo "$PROVIDER-connector: done. Accounts app -> Add account -> $LOC_NAME."
 exit 0
 POSTINST

@@ -27,13 +27,69 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"syscall"
+	"unsafe"
 
 	"github.com/zmb3/spotify/v2"
 )
+
+// rawAcceptListener is a net.Listener whose Accept() calls the plain "accept"
+// syscall (SYS_ACCEPT) directly, instead of going through Go's net/internal-poll
+// path, which unconditionally uses accept4 on every GOOS since the stdlib's
+// ENOSYS fallback for pre-accept4 kernels was removed. This device's ARM kernel
+// implements accept but not accept4 ("accept4: function not implemented"), so
+// http.ListenAndServe (which always ends up calling accept4) never accepts a
+// single connection even though it logs "listening" successfully.
+type rawAcceptListener struct {
+	fd   int
+	addr net.Addr
+	file *os.File // keeps the dup'd fd alive; do not let this be GC'd
+}
+
+func newRawAcceptListener(addr string) (*rawAcceptListener, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	tcpLn := ln.(*net.TCPListener)
+	f, err := tcpLn.File() // dup: independent, blocking fd
+	tcpLn.Close()
+	if err != nil {
+		return nil, err
+	}
+	return &rawAcceptListener{fd: int(f.Fd()), addr: ln.Addr(), file: f}, nil
+}
+
+func (l *rawAcceptListener) Accept() (net.Conn, error) {
+	for {
+		var rsa syscall.RawSockaddrAny
+		salen := uint32(unsafe.Sizeof(rsa))
+		r0, _, e1 := syscall.Syscall(syscall.SYS_ACCEPT, uintptr(l.fd), uintptr(unsafe.Pointer(&rsa)), uintptr(unsafe.Pointer(&salen)))
+		if e1 != 0 {
+			switch e1 {
+			case syscall.EINTR, syscall.ECONNABORTED:
+				continue
+			}
+			return nil, e1
+		}
+		nfd := int(r0)
+		cf := os.NewFile(uintptr(nfd), "conn")
+		conn, cerr := net.FileConn(cf)
+		cf.Close()
+		if cerr != nil {
+			continue
+		}
+		return conn, nil
+	}
+}
+
+func (l *rawAcceptListener) Close() error { return l.file.Close() }
+func (l *rawAcceptListener) Addr() net.Addr { return l.addr }
 
 // session holds the current authenticated Spotify client + chosen device.
 type session struct {
@@ -155,8 +211,12 @@ func main() {
 	mux.HandleFunc("/player/volume", withCORS(handlePlayerVolume))
 	mux.HandleFunc("/player/status", withCORS(handlePlayerStatus))
 
+	ln, err := newRawAcceptListener(*addr)
+	if err != nil {
+		log.Fatal(err)
+	}
 	log.Printf("spotify-webos-service listening on http://%s (playback device: %q)", *addr, *librespotName)
-	if err := http.ListenAndServe(*addr, mux); err != nil {
+	if err := http.Serve(ln, mux); err != nil {
 		log.Fatal(err)
 	}
 }

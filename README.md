@@ -45,5 +45,7 @@ cd service                      # Go backend, cross-compiled for the device
 GOOS=linux GOARCH=arm GOARM=7 go build -o spotify-webos-service .
 ```
 
-See `docs/ARCHITECTURE.md` for how the pieces talk, and `docs/ROADMAP.md` for the
-build order and the MPR feature catalogue.
+See `docs/ARCHITECTURE.md` for how the pieces talk, `docs/ROADMAP.md` for the
+build order and the MPR feature catalogue, and `docs/PROVISIONING.md` for the
+one-time per-device setup (Spotify client id, Apple Music's `device.wvd`, …)
+needed after installing before sign-in will actually work.

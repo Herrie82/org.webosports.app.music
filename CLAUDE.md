@@ -71,6 +71,15 @@ for the upstart job definition.
 - Multiple historical app IDs exist in `build-output/` from earlier
   iterations (`com.hedami.musicplayerremix`, `com.herrie.music.apple`,
   `com.herrie.musicspotify`) — only `org.webosports.app.music` is current.
+- Installing the ipks is not enough to make Spotify/Apple Music usable —
+  see `docs/PROVISIONING.md` for the one-time per-device secrets (Spotify
+  client id, Apple's `device.wvd`) that have to be seeded manually per
+  physical device; nothing ships these in an ipk.
+- Go's stdlib no longer has a fallback for kernels lacking the `accept4`
+  syscall (`net.Listener.Accept()` always uses it). This device's ARM kernel
+  implements `accept` but not `accept4`, so `service/main.go` uses a custom
+  `rawAcceptListener` that calls `SYS_ACCEPT` directly — don't revert to
+  `http.ListenAndServe` or any plain `net.Listen(...).Accept()` path.
 
 ## Useful Commands
 

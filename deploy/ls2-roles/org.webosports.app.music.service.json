@@ -1,4 +1,9 @@
 {
+    "//WARNING": "DO NOT INSTALL THIS FILE. Confirmed on-device: it declares the same",
+    "//WARNING2": "exeName (/usr/bin/luna-send) as the stock com.palm.lunasend.json role,",
+    "//WARNING3": "and having both broke ls-hubd's ability to register ANY luna-send",
+    "//WARNING4": "identity at all, from any caller, until this file was removed + reboot.",
+    "//WARNING5": "build.sh no longer ships it. Kept here only as historical reference.",
     "//": "Candidate LS2 role letting our backend id reach the Accounts service.",
     "//2": "On legacy webOS 3.0.5 the dev bus is permissive and `luna-send -a` may",
     "//3": "already succeed without this; deploy it only if readCredentials returns",

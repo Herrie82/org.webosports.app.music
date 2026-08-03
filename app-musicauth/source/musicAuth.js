@@ -311,10 +311,23 @@ enyo.kind({
 			}
 			this.$.codeBox.setShowing(false);
 			this.openWeb(BACKEND + "/appleauth/login");
+			this._applePollCount = 0;
 			this.startPollFn("applePollOnce", 2000);
 		}));
 	},
+	// See spotifyPollOnce's comment: cap the poll so a permanently-failing sign-in
+	// (bad/missing config, MusicKit token issue, etc.) shows an error instead of
+	// spinning forever with no feedback.
 	applePollOnce: function () {
+		this._applePollCount = (this._applePollCount || 0) + 1;
+		if (this._applePollCount > 60) {
+			this.stopPoll();
+			this.teardownWeb();
+			this.$.codeBox.setShowing(true);
+			this.$.codeStatus.setContent("Apple Music sign-in timed out. Please check the backend configuration and try again.");
+			this.$.codeRetry.setShowing(true);
+			return;
+		}
 		this.get(BACKEND + "/appleauth/status", enyo.bind(this, function (ok, j) {
 			if (ok && j && j.authenticated) {
 				this.stopPoll();
@@ -336,10 +349,28 @@ enyo.kind({
 	},
 	startLogin: function () {
 		this.busy(true);
+		this.showError("");
+		this._spotifyPollCount = 0;
 		this.openWeb(BACKEND + "/login");
 		this.startPollFn("spotifyPollOnce", 2000);
 	},
-	spotifyPollOnce: function () { this.attemptFinish(false); },
+	// Cap how long we'll silently spin: past ~2 minutes of not-yet-authenticated,
+	// surface an error instead of leaving the sign-in button spinning forever with
+	// no feedback (this is how "no client id configured" on the backend presents —
+	// /login 412s, the embedded page shows an error, but polling /auth/status never
+	// stops on its own since it never distinguishes "still signing in" from "never
+	// going to succeed").
+	spotifyPollOnce: function () {
+		this._spotifyPollCount = (this._spotifyPollCount || 0) + 1;
+		if (this._spotifyPollCount > 60) {
+			this.stopPoll();
+			this.teardownWeb();
+			this.busy(false);
+			this.showError("Spotify sign-in timed out. Check that the backend has a valid client id configured (see the sign-in page for details) and try again.");
+			return;
+		}
+		this.attemptFinish(false);
+	},
 
 	// --- embedded Atlas/WPE WebView (same lifecycle as spotifyView.js) ---
 	openWeb: function (url) {
