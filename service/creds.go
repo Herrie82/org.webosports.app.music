@@ -4,7 +4,7 @@ package main
 // Accounts service (com.palm.service.accounts) instead of (only) a flat file.
 //
 // This makes each music service a webOS *account type* (see the account template
-// deploy/accounts/com.herrie.music.spotify/…): the Accounts app owns "add / remove
+// deploy/accounts/org.webosports.app.music.spotify/…): the Accounts app owns "add / remove
 // Spotify", stores the token as the account's "common" credentials, and this
 // backend reads it back by accountId — exactly how the cloud connectors work.
 //
@@ -36,7 +36,7 @@ import (
 const serviceCallerID = "org.webosports.app.music.service"
 
 // musicTemplatePrefix matches every music-service account type we own.
-const musicTemplatePrefix = "com.herrie.music."
+const musicTemplatePrefix = "org.webosports.app.music."
 
 // lunaCall invokes a luna-bus method via luna-send and returns the parsed reply.
 // Returns (nil, err) if luna-send is unavailable or the call yields no JSON.

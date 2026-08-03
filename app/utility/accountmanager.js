@@ -6,7 +6,7 @@
  * Lets the app source its Spotify session from a webOS Account instead of an
  * in-app login. On startup syncSpotify() runs:
  *   1. listAccounts (capability "Music", fallback: all accounts filtered by the
- *      com.herrie.music.* templateId prefix) via com.palm.service.accounts
+ *      org.webosports.app.music.* templateId prefix) via com.palm.service.accounts
  *   2. readCredentials {accountId, name:"common"} for the first Spotify account
  *   3. normalise the stored token (3 nesting shapes) and POST it to the local Go
  *      backend's /session so playback + search work with no separate sign-in.
@@ -24,8 +24,8 @@ enyo.kind({
 	published: { backend: "http://127.0.0.1:8730" },
 	events: { onSynced: "" },   // onSynced(ok, accountId)
 
-	templatePrefix: "com.herrie.music.",
-	spotifyTemplate: "com.herrie.music.spotify",
+	templatePrefix: "org.webosports.app.music.",
+	spotifyTemplate: "org.webosports.app.music.spotify",
 
 	components: [
 		// Prefer a capability-filtered list; fall back to an unfiltered list.

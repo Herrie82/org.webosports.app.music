@@ -1,6 +1,6 @@
 [
     {
-        "templateId": "com.herrie.music.apple",
+        "templateId": "org.webosports.app.music.apple",
         "loc_name": "Apple Music",
         "icon": {
             "loc_32x32": "images/apple-32x32.png",
@@ -8,7 +8,7 @@
         },
         "validator": {
             "customUI": {
-                "appId": "com.herrie.musicauth",
+                "appId": "org.webosports.app.musicauth",
                 "name": "validator.html"
             }
         },
@@ -16,18 +16,18 @@
         "readPermissions": [
             "org.webosports.app.music.service",
             "org.webosports.app.music",
-            "com.herrie.musicauth"
+            "org.webosports.app.musicauth"
         ],
         "writePermissions": [
             "org.webosports.app.music.service",
             "org.webosports.app.music",
-            "com.herrie.musicauth"
+            "org.webosports.app.musicauth"
         ],
         "capabilityProviders": [
             {
                 "capability": "Music",
                 "capabilitySubtype": "STREAMING",
-                "id": "com.herrie.music.apple.streaming",
+                "id": "org.webosports.app.music.apple.streaming",
                 "alwaysOn": true,
                 "loc_shortName": "Apple Music",
                 "icon": {

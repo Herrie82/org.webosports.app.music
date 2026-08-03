@@ -4,7 +4,7 @@
 # the backend so it re-reads credentials. Idempotent.
 #
 # Expects the staging payload already pushed to /media/internal/mp-accounts/:
-#   accounts/com.herrie.music.spotify/...   (template + images)
+#   accounts/org.webosports.app.music.spotify/...   (template + images)
 #   ls2-roles/org.webosports.app.music.service.json
 #   spotify-webos-service                   (rebuilt ARM backend, optional)
 set -e
@@ -19,7 +19,7 @@ mount -o remount,rw / 2>/dev/null || true
 echo "== install account template(s) -> $ACCTS =="
 mkdir -p "$ACCTS"
 cp -a "$STAGE"/accounts/. "$ACCTS"/
-ls -la "$ACCTS"/com.herrie.music.spotify/ || true
+ls -la "$ACCTS"/org.webosports.app.music.spotify/ || true
 
 echo "== install ls2 role (both bus dirs) =="
 for d in "$ROLES_PRV" "$ROLES_PUB"; do

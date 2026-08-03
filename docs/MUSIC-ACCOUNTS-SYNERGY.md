@@ -29,13 +29,13 @@ change. On-device testing settles which the build accepts.)
 
 For each service `<svc>` (spotify, youtube, soundcloud, deezer, tidal):
 
-1. **Account template** — `/usr/palm/public/accounts/com.herrie.music.<svc>/com.herrie.music.<svc>.json`:
+1. **Account template** — `/usr/palm/public/accounts/org.webosports.app.music.<svc>/org.webosports.app.music.<svc>.json`:
 ```json
 [{
-  "templateId": "com.herrie.music.<svc>",
+  "templateId": "org.webosports.app.music.<svc>",
   "loc_name": "<Service>",
   "icon": { "loc_32x32": "images/<svc>-32.png", "loc_48x48": "images/<svc>-48.png" },
-  "validator": { "customUI": { "appId": "com.herrie.musicauth", "name": "validator.html" } },
+  "validator": { "customUI": { "appId": "org.webosports.app.musicauth", "name": "validator.html" } },
   "readPermissions":  ["org.webosports.app.music.service", "org.webosports.app.music"],
   "writePermissions": ["org.webosports.app.music.service", "org.webosports.app.music"],
   "capabilityProviders": []
@@ -44,10 +44,10 @@ For each service `<svc>` (spotify, youtube, soundcloud, deezer, tidal):
    (No capabilityProviders — credential-store account. read/writePermissions gate
    who may `readCredentials`, so the backend service + app are listed.)
 
-2. **Validator app** — `com.herrie.musicauth` with `validator.html`, a thin reuse of
+2. **Validator app** — `org.webosports.app.musicauth` with `validator.html`, a thin reuse of
    `com.palm.app.cloud-auth`'s pattern (the embedded **atlas-simple** WebView OAuth we
    already got working for Spotify): runs the service's OAuth, and on success returns
-   `{ returnValue:true, credentials:{ common:{ access_token, refresh_token, expiry } }, template:"com.herrie.music.<svc>" }`
+   `{ returnValue:true, credentials:{ common:{ access_token, refresh_token, expiry } }, template:"org.webosports.app.music.<svc>" }`
    to Accounts, which persists the credentials against the new account. One validator
    app handles all services (switch by the template it's launched for).
 
@@ -59,8 +59,8 @@ For each service `<svc>` (spotify, youtube, soundcloud, deezer, tidal):
 ## Auth + credential flow
 
 ```
-Accounts UI: Add account → com.herrie.music.spotify
-   → launches validator (com.herrie.musicauth/validator.html) in customUI
+Accounts UI: Add account → org.webosports.app.music.spotify
+   → launches validator (org.webosports.app.musicauth/validator.html) in customUI
    → atlas-simple WebView OAuth (the flow we already built) → token
    → validator returns { credentials:{common:{access_token,refresh_token,expiry}}, template }
    → Accounts stores it; a new accountId exists.
@@ -94,7 +94,7 @@ fallback for the standalone/dev case).
 ## Build order to adopt this
 1. `MusicProvider` framework — DONE (provider.go etc.).
 2. Backend credential helper (readCredentials/writeCredentials/listAccounts) + ls2 role.
-3. `com.herrie.musicauth` validator app (reuse cloud-auth's atlas-simple OAuth).
+3. `org.webosports.app.musicauth` validator app (reuse cloud-auth's atlas-simple OAuth).
 4. Account template(s) + icons deployed to `/usr/palm/public/accounts/…`.
 5. Backend: build providers from accounts (keyed by accountId); token-file becomes fallback.
 6. Enyo source selector listing accounts.
@@ -109,7 +109,7 @@ new variable). All artifacts compile; **device deploy/verify is blocked on the
 host `novacomd` transport** (it went to a defunct zombie mid-session — needs a
 host-side restart, see runbook). Built:
 
-- **Account template + MUSIC capability** — `deploy/accounts/com.herrie.music.spotify/`
+- **Account template + MUSIC capability** — `deploy/accounts/org.webosports.app.music.spotify/`
   (template JSON declaring `capability:"MUSIC"` + Spotify-green 32/48px icons).
 - **Backend `service/creds.go`** — reads/writes an account's `common` credentials
   via `luna-send -a org.webosports.app.music.service` to `com.palm.service.accounts`
@@ -120,7 +120,7 @@ host-side restart, see runbook). Built:
   account (`currentAccountID`).
 - **`service/auth.go`** — new localhost `/auth/token` returns the current token in
   `{accessToken,refreshToken,expiry}` shape for the validator app.
-- **Validator app `app-musicauth/`** (`com.herrie.musicauth`) — the "Add account"
+- **Validator app `app-musicauth/`** (`org.webosports.app.musicauth`) — the "Add account"
   customUI: embedded atlas-simple WebView OAuth → `/auth/token` → returns
   `credentials.common` via `enyo.CrossAppResult`. Needs one on-device iteration
   pass (activation-param + card lifecycle).
@@ -140,7 +140,7 @@ novacom -l                                       # confirm topaz-linux listed
 
 # 1. deploy template + role + rebuilt backend, and register the account type
 DEVICE=topaz-linux bash deploy/deploy-accounts.sh
-#    -> step 5 prints the registered com.herrie.music.* template (or NOT REGISTERED)
+#    -> step 5 prints the registered org.webosports.app.music.* template (or NOT REGISTERED)
 
 # 2. headless PoC: create a Spotify account from the existing token + read it back
 novacom -d topaz-linux run file:///bin/sh -- -c \

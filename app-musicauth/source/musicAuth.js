@@ -1,4 +1,4 @@
-/* MusicAuth — customUI validator for the music account types (com.herrie.music.*).
+/* MusicAuth — customUI validator for the music account types (org.webosports.app.music.*).
  *
  * Styled like the Synergy IM validators (Google Chat / Signal / WhatsApp): an
  * enyo-bg card with an accounts-header (connector logo + title), a box-center
@@ -118,7 +118,7 @@ enyo.kind({
 	handleLaunch: function (p) {
 		p = p || {};
 		this.templateObj = p.template || null;
-		this.templateId = (this.templateObj && this.templateObj.templateId) || p.templateId || "com.herrie.music.spotify";
+		this.templateId = (this.templateObj && this.templateObj.templateId) || p.templateId || "org.webosports.app.music.spotify";
 		this.serviceId = this.templateId.split(".").pop();
 		this.serviceName = (this.templateObj && this.templateObj.loc_name) ||
 			(this.serviceId.charAt(0).toUpperCase() + this.serviceId.slice(1));

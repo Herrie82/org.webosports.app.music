@@ -9,7 +9,7 @@
         "allowedNames": [
             "org.webosports.app.music.service",
             "org.webosports.app.music",
-            "com.herrie.musicauth"
+            "org.webosports.app.musicauth"
         ]
     },
     "permissions": [

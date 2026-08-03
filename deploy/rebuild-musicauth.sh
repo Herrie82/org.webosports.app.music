@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Rebuild the com.herrie.musicauth validator IPK, push it, install on-device via
+# Rebuild the org.webosports.app.musicauth validator IPK, push it, install on-device via
 # ipkg offline-root (hub-independent), and restart LunaSysMgr to re-register.
 # Usage: DEVICE=topaz-linux bash deploy/rebuild-musicauth.sh
 set -euo pipefail
 DEVICE="${DEVICE:-topaz-linux}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APPDIR="$ROOT/app-musicauth"; ID=com.herrie.musicauth
+APPDIR="$ROOT/app-musicauth"; ID=org.webosports.app.musicauth
 OUT="$ROOT/build-output"
 VER="$(sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' "$APPDIR/appinfo.json" | head -1)"
 TITLE="$(sed -n 's/.*"title"[^"]*"\([^"]*\)".*/\1/p' "$APPDIR/appinfo.json" | head -1)"
@@ -17,7 +17,7 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/data/usr/palm/applications/$ID" "$STAGE/data/usr/palm/packages/$ID" "$STAGE/control"
 rsync -a --exclude '.git' "$APPDIR"/ "$STAGE/data/usr/palm/applications/$ID/"
 cat > "$STAGE/data/usr/palm/packages/$ID/packageinfo.json" <<EOF
-{ "app": "$ID", "id": "$ID", "icon": "icon.png", "loc_name": "$TITLE", "package_format_version": 2, "vendor": "Herrie", "version": "$VER" }
+{ "app": "$ID", "id": "$ID", "icon": "icon.png", "loc_name": "$TITLE", "package_format_version": 2, "vendor": "WebOS Ports", "version": "$VER" }
 EOF
 KB=$(du -sk "$STAGE/data" | cut -f1)
 cat > "$STAGE/control/control" <<EOF
@@ -27,8 +27,8 @@ Section: misc
 Priority: optional
 Architecture: all
 Installed-Size: $KB
-Maintainer: Herrie <nobody@example.com>
-Description: Music account validator (customUI) for com.herrie.music.* account types.
+Maintainer: Herman van Hazendonk <github.com@herrie.org>
+Description: Music account validator (customUI) for org.webosports.app.music.* account types.
 webOS-Package-Format-Version: 2
 EOF
 ( cd "$STAGE" && echo "2.0" > debian-binary \

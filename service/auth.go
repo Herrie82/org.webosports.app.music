@@ -123,7 +123,7 @@ func handleAuthStatus(w http.ResponseWriter, r *http.Request) {
 
 // handleAuthToken returns the current OAuth token in the account-credential
 // shape ({accessToken, refreshToken, expiry}) so the Accounts validator app
-// (com.herrie.musicauth) can hand it to the Accounts service after login. The
+// (org.webosports.app.musicauth) can hand it to the Accounts service after login. The
 // server listens on 127.0.0.1 only, so this never leaves the device.
 func handleAuthToken(w http.ResponseWriter, r *http.Request) {
 	if currentTokenSource == nil {

@@ -48,7 +48,7 @@ enyo.kind({
 				//{content: $L("Genres"), className: "name"}
 			]},
 			// Spotify lives as a tab inside Connectors (login is via the Accounts app,
-			// com.herrie.musicauth), so it has no separate left-menu entry or view.
+			// org.webosports.app.musicauth), so it has no separate left-menu entry or view.
 			{name: "libConnectors", kind:'Item', layoutKind: "HFlexLayout", pack:"start", align:"center", navstring: "Connectors", className: "connectors", onclick: "onClickLibrary", components: [
 				// Inline style (not CSS) so it bypasses webOS's sticky CSS cache; the
 				// url is relative to index.html (app root), so no ../ prefix.

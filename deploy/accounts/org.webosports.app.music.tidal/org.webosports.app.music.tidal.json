@@ -1,6 +1,6 @@
 [
     {
-        "templateId": "com.herrie.music.tidal",
+        "templateId": "org.webosports.app.music.tidal",
         "loc_name": "Tidal",
         "icon": {
             "loc_32x32": "images/tidal-32x32.png",
@@ -8,7 +8,7 @@
         },
         "validator": {
             "customUI": {
-                "appId": "com.herrie.musicauth",
+                "appId": "org.webosports.app.musicauth",
                 "name": "validator.html"
             }
         },
@@ -16,18 +16,18 @@
         "readPermissions": [
             "org.webosports.app.music.service",
             "org.webosports.app.music",
-            "com.herrie.musicauth"
+            "org.webosports.app.musicauth"
         ],
         "writePermissions": [
             "org.webosports.app.music.service",
             "org.webosports.app.music",
-            "com.herrie.musicauth"
+            "org.webosports.app.musicauth"
         ],
         "capabilityProviders": [
             {
                 "capability": "Music",
                 "capabilitySubtype": "STREAMING",
-                "id": "com.herrie.music.tidal.streaming",
+                "id": "org.webosports.app.music.tidal.streaming",
                 "alwaysOn": true,
                 "loc_shortName": "Tidal",
                 "icon": {

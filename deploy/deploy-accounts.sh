@@ -53,7 +53,7 @@ echo "== 4. unpack + run installer on device =="
 run "cd /media/internal && rm -rf mp-accounts && tar -xzf mp-accounts.tar.gz && chmod +x mp-accounts/*.sh && sh mp-accounts/ondevice-install-accounts.sh"
 
 echo "== 5. verify account type registered =="
-run "luna-send -n 1 -a test palm://com.palm.service.accounts/listAccountTemplates '{}' | tr ',' '\n' | grep -i com.herrie.music || echo 'NOT REGISTERED'"
+run "luna-send -n 1 -a test palm://com.palm.service.accounts/listAccountTemplates '{}' | tr ',' '\n' | grep -i org.webosports.app.music || echo 'NOT REGISTERED'"
 
 rm -rf "$STAGE_LOCAL"
 echo "== deploy done. To create+verify an account headless, run on device: =="

@@ -1,7 +1,7 @@
 {
-	"id": "com.herrie.musicauth",
-	"version": "0.2.0",
-	"vendor": "Herrie",
+	"id": "org.webosports.app.musicauth",
+	"version": "0.9.0",
+	"vendor": "WebOS Ports",
 	"type": "web",
 	"main": "validator.html",
 	"title": "Music Account",
