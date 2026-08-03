@@ -14,6 +14,8 @@ deezer-arl
 tidal-token
 *.arl
 spotify-client-id
+device.wvd
+jamendo-clientid
 
 # editor / OS
 .DS_Store

@@ -27,6 +27,28 @@ ACCOUNT_JSON="$ACCOUNT_DIR/$PKG_ID.json"
 LOC_NAME="$(sed -n 's/.*"loc_name"[^"]*"\([^"]*\)".*/\1/p' "$ACCOUNT_JSON" | head -1)"
 [ -n "$LOC_NAME" ] || LOC_NAME="$PROVIDER"
 
+# Optional per-provider secret this connector bundles into its own postinst, so
+# installing "Spotify" also gets you the client id needed to actually sign in — see
+# deploy/secrets/README.md. Not committed (root .gitignore); only present on machines
+# that have run their own provisioning. SECRET_RESTART=1 means the backend needs a
+# restart to pick up the change (it's read once at startup, not per-request).
+SECRET_FILE=""; SECRET_DEST=""; SECRET_RESTART=0
+case "$PROVIDER" in
+    spotify) SECRET_FILE="spotify-client-id"; SECRET_DEST="\$DATADIR/spotify-client-id"; SECRET_RESTART=1 ;;
+    apple)   SECRET_FILE="device.wvd";        SECRET_DEST="/media/internal/device.wvd";  SECRET_RESTART=0 ;;
+    jamendo) SECRET_FILE="jamendo-clientid";   SECRET_DEST="\$DATADIR/jamendo-clientid";  SECRET_RESTART=1 ;;
+esac
+SECRET_B64=""
+if [ -n "$SECRET_FILE" ] && [ -f "$ROOT/deploy/secrets/$SECRET_FILE" ]; then
+    # Wrapped at the standard 76 chars/line (MIME format), NOT -w0/one giant line: the
+    # device's OpenSSL 0.9.8 `base64 -d` silently emits 0 bytes on an unwrapped multi-KB
+    # line (confirmed on-device — a >1000-char single line decodes to nothing, the same
+    # length wrapped at 76 decodes byte-exact). coreutils `base64`'s default wrap (no -w
+    # flag) is 76, which is what we want here.
+    SECRET_B64="$(base64 "$ROOT/deploy/secrets/$SECRET_FILE")"
+    echo ">> bundling local secret: $SECRET_FILE -> $SECRET_DEST"
+fi
+
 VER="${VER:-0.9.2}"
 OUT="$ROOT/build-output"
 PKG="${PKG_ID}_${VER}_all.ipk"
@@ -64,12 +86,13 @@ EOF
 
 cat > "$STAGE/control/postinst" <<POSTINST
 #!/bin/sh
-# Runs as root under ipkg (Preware / WebOS Quick Install). Provisions only the $LOC_NAME
-# account template — the backend/role/validator are the base package's job.
+# Runs as root under ipkg (Preware / WebOS Quick Install). Provisions the $LOC_NAME
+# account template — the backend/validator are the base package's job.
 set -e
 APP=/media/cryptofs/apps/usr/palm/applications/$APP_ID
 PAYLOAD="\$APP/connector-payload"
 ACCTS=/usr/palm/public/accounts
+DATADIR=/media/cryptofs/spotify-webos
 echo "$PROVIDER-connector: installing account template..."
 
 mount -o remount,rw / 2>/dev/null || true
@@ -87,6 +110,30 @@ for svc in com.palm.service.accounts com.palm.service.accounts.mojoservice; do
     luna-send -n 1 -a install "palm://com.palm.service.bus/signal/registerServerStatus" "{\"serviceName\":\"\$svc\"}" >/dev/null 2>&1 || true
 done
 initctl stop LunaSysService 2>/dev/null || true; sleep 1; initctl start LunaSysService 2>/dev/null || true
+POSTINST
+
+if [ -n "$SECRET_B64" ]; then
+    cat >> "$STAGE/control/postinst" <<POSTINST
+
+mkdir -p "\$DATADIR"
+echo "$PROVIDER-connector: installing bundled secret ($SECRET_FILE)..."
+# Piped into openssl via stdin (heredoc), NOT passed as a command-line argument —
+# BusyBox's shell silently truncates/fails a multi-KB single "echo \$var" argument
+# (confirmed on-device with device.wvd), so this must stream instead.
+openssl base64 -d > "$SECRET_DEST" <<'SECRETDATA'
+$SECRET_B64
+SECRETDATA
+chmod 0644 "$SECRET_DEST"
+POSTINST
+    if [ "$SECRET_RESTART" = "1" ]; then
+        cat >> "$STAGE/control/postinst" <<'POSTINST'
+initctl stop spotify-webos-service 2>/dev/null || true; sleep 1
+initctl start spotify-webos-service 2>/dev/null || true
+POSTINST
+    fi
+fi
+
+cat >> "$STAGE/control/postinst" <<POSTINST
 
 echo "$PROVIDER-connector: done. Accounts app -> Add account -> $LOC_NAME."
 exit 0
