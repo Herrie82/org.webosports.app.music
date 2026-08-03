@@ -35,13 +35,6 @@ See `docs/INSTALL.md` for the full install order and prerequisites
 types are set up by a `postinst` script that plain `palm-install` does not
 run).
 
-### Before you sign in
-
-Spotify and Apple Music each need a one-time device secret before sign-in
-will work (a Spotify app client id you register yourself, and a Widevine
-`device.wvd` for Apple Music) — see `docs/PROVISIONING.md`. Everything
-else works with no setup beyond installing the connector.
-
 ### Known limitations
 
 - Per the project status: this is an early-stage release. Expect rough
@@ -49,5 +42,3 @@ else works with no setup beyond installing the connector.
   device.
 - Deezer, Tidal, and Qobuz require an active subscription with that
   service to play full tracks.
-- Apple Music playback requires a personally-obtained Widevine L3 device
-  credential; none is provided or distributable with this project.
