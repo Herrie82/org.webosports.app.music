@@ -57,11 +57,18 @@ trap 'rm -rf "$STAGE"' EXIT
 
 echo ">> 1. stage data tree"
 # Payload rides inside musicauth's own app directory (owned by the base package) so it
-# doesn't need — and doesn't get — an app id / launch point of its own.
-APPDST="$STAGE/data/usr/palm/applications/$APP_ID"
+# doesn't need — and doesn't get — an app id / launch point of its own. Staged under
+# media/cryptofs/music-overwrite/<pkg-id>/, NOT directly under usr/palm/applications/<app-id> --
+# see the matching comment in build.sh's postinst heredoc for why (the direct path is either
+# read-only root-fs at extraction time, or double-prefixed under Preware/WOSQI's offline-root
+# install; a neutral OV staging path + postinst-driven copy to the literal real destination is
+# immune to which install method was used). Keyed by $PKG_ID (unique per connector), not $APP_ID
+# (shared by every connector) -- so installing spotify then deezer never collides.
+OV_REL="media/cryptofs/music-overwrite/$PKG_ID"
 PKGDST="$STAGE/data/usr/palm/packages/$PKG_ID"
-PAYLOAD="$APPDST/connector-payload"
+PAYLOAD="$STAGE/data/$OV_REL/connector-payload"
 mkdir -p "$PKGDST" "$PAYLOAD/accounts"
+echo "/media/cryptofs/apps/usr/palm/applications/$APP_ID" > "$STAGE/data/$OV_REL/dest.txt"
 
 cp -a "$ACCOUNT_DIR" "$PAYLOAD/accounts/"
 
@@ -89,9 +96,29 @@ cat > "$STAGE/control/postinst" <<POSTINST
 # Runs as root under ipkg (Preware / WebOS Quick Install). Provisions the $LOC_NAME
 # account template — the backend/validator are the base package's job.
 set -e
-APP=/media/cryptofs/apps/usr/palm/applications/$APP_ID
-PAYLOAD="\$APP/connector-payload"
+
+# See the matching comment in build.sh's postinst heredoc for why this is staged under a
+# neutral OV path rather than directly under usr/palm/applications/$APP_ID -- checked at BOTH
+# the direct-install and offline-root-doubled locations, since Preware/WOSQI's offline-root
+# ipkg invocation prepends /media/cryptofs/apps to every path in data.tar.gz.
+OV=""
+for base in /media/cryptofs/music-overwrite/$PKG_ID /media/cryptofs/apps/media/cryptofs/music-overwrite/$PKG_ID; do
+    [ -d "\$base" ] && OV="\$base" && break
+done
 ACCTS=/usr/palm/public/accounts
+if [ -z "\$OV" ]; then
+    # WebOSQuickInstall (confirmed live elsewhere in this project family) runs this SAME
+    # pmPostInstall.script a second time itself, after the real App-Installer-driven install
+    # already ran it once and cleaned up \$OV (see below) - a second run legitimately finds
+    # nothing staged, which is not a real failure if the template is already provisioned.
+    if [ -d "\$ACCTS/$PKG_ID" ]; then
+        echo "$PROVIDER-connector: nothing newly staged - already installed, treating as a no-op"
+        exit 0
+    fi
+    echo "$PROVIDER-connector: !! no media/cryptofs/music-overwrite/$PKG_ID staged (checked direct + offline-root paths) - nothing to install" >&2
+    exit 1
+fi
+PAYLOAD="\$OV/connector-payload"
 DATADIR=/media/cryptofs/spotify-webos
 echo "$PROVIDER-connector: installing account template..."
 
@@ -100,6 +127,7 @@ mkdir -p "\$ACCTS"
 cp -a "\$PAYLOAD/accounts/." "\$ACCTS/"
 sync
 mount -o remount,ro / 2>/dev/null || true
+rm -rf "\$OV"
 
 # Dropping the template file isn't enough — the Accounts service caches its template
 # list and only re-scans on these triggers (see deploy/ondevice-install-accounts.sh,
