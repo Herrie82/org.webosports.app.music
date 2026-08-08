@@ -199,17 +199,30 @@ func innertubePost(ctx context.Context, host, endpoint string, cl itClient, body
 // StreamURL resolves a direct audio URL for a videoId, preferring AAC (itag 140)
 // then Opus (itag 251/250/249) — both decodable on-device.
 func (y *youtubeProvider) StreamURL(ctx context.Context, trackID string) (string, error) {
-	return y.streamURL(ctx, trackID, "")
+	return y.streamURL(ctx, trackID, "", "audio")
 }
 
 // StreamURLFormat resolves preferring a specific format label (e.g. "OPUS 160") for the
 // tap-to-switch selector; falls back to the default preference if that format isn't
 // available. Implements the optional formatSelector capability (see provider.go).
 func (y *youtubeProvider) StreamURLFormat(ctx context.Context, trackID, prefFormat string) (string, error) {
-	return y.streamURL(ctx, trackID, prefFormat)
+	return y.streamURL(ctx, trackID, prefFormat, "audio")
 }
 
-func (y *youtubeProvider) streamURL(ctx context.Context, trackID, prefFormat string) (string, error) {
+// StreamURLVideo resolves a direct PROGRESSIVE video URL for a videoId — a single
+// muxed H.264+AAC file (itag 22 = 720p, falling back to itag 18 = 360p), as opposed to
+// the split video-only/audio-only "adaptiveFormats" the audio path uses. These two
+// legacy itags are what this device can actually play: the SoC's hardware decoder
+// (OMX.qcom.video.decoder.avc) only does H.264, not VP9/AV1 (modern YouTube's default
+// adaptive formats), and a single muxed file sidesteps having to mux/sync separate
+// video+audio streams ourselves. Implements the optional videoResolver capability (see
+// provider.go). Availability of itag 22 in particular is YouTube's choice and has grown
+// intermittent across the ecosystem generally; itag 18 is the more durable fallback.
+func (y *youtubeProvider) StreamURLVideo(ctx context.Context, trackID string) (string, error) {
+	return y.streamURL(ctx, trackID, "", "video")
+}
+
+func (y *youtubeProvider) streamURL(ctx context.Context, trackID, prefFormat, kind string) (string, error) {
 	if trackID == "" {
 		return "", fmt.Errorf("no track id")
 	}
@@ -286,6 +299,14 @@ resolve:
 					MimeType        string `json:"mimeType"`
 					SignatureCipher string `json:"signatureCipher"`
 				} `json:"adaptiveFormats"`
+				// Formats: progressive (single muxed video+audio file) streams — itag
+				// 18/22, H.264+AAC. Used only by the video path (kind=="video").
+				Formats []struct {
+					Itag            int    `json:"itag"`
+					URL             string `json:"url"`
+					MimeType        string `json:"mimeType"`
+					SignatureCipher string `json:"signatureCipher"`
+				} `json:"formats"`
 				HlsManifestURL  string `json:"hlsManifestUrl"`
 				DashManifestURL string `json:"dashManifestUrl"`
 			}
@@ -294,14 +315,19 @@ resolve:
 			}
 			log.Printf("youtube player %s(%s): formats=%d hls=%v dash=%v", cl.name, trackID,
 				len(streaming.AdaptiveFormats), streaming.HlsManifestURL != "", streaming.DashManifestURL != "")
-			// Pick the best audio format (AAC 140, then Opus tiers, then any audio),
-			// taking either its direct URL or its ciphered form.
+			// Pick the best format (AAC 140, then Opus tiers, then any audio -- or,
+			// for video, progressive itag 22 then 18), taking either its direct URL
+			// or its ciphered form.
 			var directURL, cipher string
 			var pickedItag int
 			var pickedMime string
 			pick := func(itag int) bool {
-				for i := range streaming.AdaptiveFormats {
-					f := &streaming.AdaptiveFormats[i]
+				list := streaming.AdaptiveFormats
+				if kind == "video" {
+					list = streaming.Formats
+				}
+				for i := range list {
+					f := &list[i]
 					match := itag > 0 && f.Itag == itag
 					if itag == 0 {
 						match = strings.HasPrefix(f.MimeType, "audio/")
@@ -322,38 +348,32 @@ resolve:
 				}
 				return false
 			}
-			// Default preference AAC-then-Opus; if the user picked a format via the
-			// selector, move the itags matching that label to the front.
-			order := []int{140, 251, 250, 249, 0}
-			if prefFormat != "" {
-				var pref []int
-				for _, it := range []int{139, 140, 141, 249, 250, 251, 256, 258} {
-					if ytFmtLabel(it, "") == prefFormat {
-						pref = append(pref, it)
+			var order []int
+			if kind == "video" {
+				// Progressive muxed H.264+AAC only: 22 (720p) preferred, 18 (360p)
+				// fallback -- both hardware-decodable on this device.
+				order = []int{22, 18}
+			} else {
+				// Default preference AAC-then-Opus; if the user picked a format via
+				// the selector, move the itags matching that label to the front.
+				order = []int{140, 251, 250, 249, 0}
+				if prefFormat != "" {
+					var pref []int
+					for _, it := range []int{139, 140, 141, 249, 250, 251, 256, 258} {
+						if ytFmtLabel(it, "") == prefFormat {
+							pref = append(pref, it)
+						}
 					}
+					order = append(pref, order...)
 				}
-				order = append(pref, order...)
 			}
 			for _, want := range order {
 				if pick(want) {
 					break
 				}
 			}
-			// Distinct audio-format labels available for this track — for the badge and
-			// (later) the tap-to-switch selector.
-			var avail []string
-			seenFmt := map[string]bool{}
-			for i := range streaming.AdaptiveFormats {
-				f := &streaming.AdaptiveFormats[i]
-				if strings.HasPrefix(f.MimeType, "audio/") {
-					if l := ytFmtLabel(f.Itag, f.MimeType); l != "" && !seenFmt[l] {
-						seenFmt[l] = true
-						avail = append(avail, l)
-					}
-				}
-			}
 			best := directURL
-			if best == "" && cipher != "" { // TVHTML5 gives ciphered URLs — descramble via base.js
+			if best == "" && cipher != "" { // TVHTML5 gives ciphered URLs -- descramble via base.js
 				if u, derr := decipherSignatureCipher(ctx, cipher); derr == nil {
 					best = u
 					log.Printf("youtube player %s(%s): resolved via decipher", cl.name, trackID)
@@ -363,20 +383,35 @@ resolve:
 			}
 			if best != "" {
 				// The player API can say playabilityStatus:OK yet hand back a googlevideo
-				// CDN url that then 403s (bot-check / expired / throttled) — the app plays
+				// CDN url that then 403s (bot-check / expired / throttled) -- the app plays
 				// it, it fails instantly, and the track "skips". Verify the url is actually
 				// served before returning it; if not, fall through to the next client.
 				if ytProbePlayable(ctx, best) {
-					label := ytFmtLabel(pickedItag, pickedMime)
-					setNowPlaying(label, avail)
-					log.Printf("youtube player %s(%s): resolved audio url (verified) [%s]", cl.name, trackID, label)
+					if kind == "audio" {
+						// Distinct audio-format labels available for this track -- for
+						// the badge and the tap-to-switch selector. No equivalent UI for
+						// video mode, so this is skipped there.
+						var avail []string
+						seenFmt := map[string]bool{}
+						for i := range streaming.AdaptiveFormats {
+							f := &streaming.AdaptiveFormats[i]
+							if strings.HasPrefix(f.MimeType, "audio/") {
+								if l := ytFmtLabel(f.Itag, f.MimeType); l != "" && !seenFmt[l] {
+									seenFmt[l] = true
+									avail = append(avail, l)
+								}
+							}
+						}
+						setNowPlaying(ytFmtLabel(pickedItag, pickedMime), avail)
+					}
+					log.Printf("youtube player %s(%s): resolved %s url (verified) [itag %d]", cl.name, trackID, kind, pickedItag)
 					return best, nil
 				}
 				lastErr = fmt.Errorf("%s: resolved url failed playability probe", cl.name)
 				log.Printf("youtube player %s(%s): %v", cl.name, trackID, lastErr)
 				continue
 			}
-			lastErr = fmt.Errorf("%s: no direct audio url (ciphered?)", cl.name)
+			lastErr = fmt.Errorf("%s: no direct %s url (ciphered?)", cl.name, kind)
 			log.Printf("youtube player %s(%s): %v", cl.name, trackID, lastErr)
 		}
 		// AUTO-HEAL: a whole pass produced no *playable* url. Force-refresh the visitor
@@ -523,6 +558,9 @@ type videoRenderer struct {
 	LengthText struct {
 		SimpleText string `json:"simpleText"`
 	} `json:"lengthText"`
+	PublishedTimeText struct {
+		SimpleText string `json:"simpleText"`
+	} `json:"publishedTimeText"`
 	Thumbnail struct {
 		Thumbnails []struct {
 			URL string `json:"url"`
@@ -545,7 +583,8 @@ func (v *videoRenderer) toTrack() providerTrack {
 	return providerTrack{
 		ID: v.VideoID, Provider: "youtube", Title: title, Artist: artist,
 		Thumbnail: thumb, DurationMs: parseClockMs(v.LengthText.SimpleText),
-		Path: "youtube:" + v.VideoID,
+		Published: v.PublishedTimeText.SimpleText,
+		Path:      "youtube:" + v.VideoID,
 	}
 }
 

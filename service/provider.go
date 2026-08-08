@@ -30,6 +30,16 @@ type formatSelector interface {
 	StreamURLFormat(ctx context.Context, trackID, format string) (string, error)
 }
 
+// videoResolver is an OPTIONAL provider capability: resolve a direct, playable VIDEO
+// url (as opposed to StreamURL's audio-only url) for a track id. Only YouTube
+// implements it (progressive itag 22/18 — see youtube.go). Unlike /provider/<id>/play,
+// the "resolveVideo" action does NOT hand the url to the internal headless audio
+// pipeline — it hands the raw url back to the caller, which launches it via the
+// native hardware-decoding Video Player app instead.
+type videoResolver interface {
+	StreamURLVideo(ctx context.Context, trackID string) (string, error)
+}
+
 // current stream context so /stream/switchformat can re-resolve the playing track in a
 // different format without the UI having to re-send the track id.
 var (
@@ -68,6 +78,9 @@ type providerTrack struct {
 	Album      string `json:"album"`
 	Thumbnail  string `json:"thumbnail"`
 	DurationMs int    `json:"duration_ms"`
+	// Published is a relative-time label ("2 weeks ago") for providers that have one
+	// (currently just YouTube search results, straight from InnerTube's publishedTimeText).
+	Published string `json:"published,omitempty"`
 	// Path the app should hand to playback. For Spotify: spotify:track:<id>.
 	// For stream-URL providers: provider:<id>:<trackid> (the app calls
 	// /provider/<id>/play to actually start it).
@@ -180,6 +193,22 @@ func handleProviderRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, map[string]bool{"ok": true})
+	case "resolveVideo":
+		var body struct {
+			TrackID string `json:"trackId"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		vr, ok := p.(videoResolver)
+		if !ok {
+			httpErr(w, http.StatusConflict, id+" has no video stream")
+			return
+		}
+		url, err := vr.StreamURLVideo(r.Context(), body.TrackID)
+		if err != nil {
+			httpErr(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		writeJSON(w, map[string]string{"url": url})
 	default:
 		httpErr(w, http.StatusBadRequest, "unknown action: "+action)
 	}
