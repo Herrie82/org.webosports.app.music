@@ -11,5 +11,6 @@
  "noWindow": true,
  "uiRevision": 2,
  "debug": false,
- "removable": true
+ "removable": true,
+ "requiredPermissions": ["accountsservice.operation", "audio.management", "audio.operation", "database.operation", "luna-sysmgr.operation"]
 }
